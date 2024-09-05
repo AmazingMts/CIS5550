@@ -3,7 +3,6 @@ package cis5550.webserver;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -11,161 +10,170 @@ import java.util.concurrent.Executors;
 
 import cis5550.tools.Logger;
 
-public class Server {
+public class Server
+{
 	private static final Logger logger = Logger.getLogger(Server.class);
+	// use threadPool realize concurrency
 	private static ExecutorService threadPool;
 
 	public static void main(String[] args) throws IOException {
 		// Check for correct number of arguments
-		if (args.length != 2) {
+		if (args.length != 2)
+		{
 			logger.error("Invalid amount of parameters. Expected two, but got " + args.length);
 			System.out.println("Written by Tianshi Miao");
 			return;
 		}
-
+		// Verify whether port and directory exist
 		int port = Integer.parseInt(args[0]);
 		String directory = args[1];
 		File directoryFile = new File(directory);
-		if (!directoryFile.exists() || !directoryFile.isDirectory()) {
+		if (!directoryFile.exists() || !directoryFile.isDirectory())
+		{
 			logger.error("Directory path " + directory + " is not valid");
 			return;
 		}
-
 		// Create ServerSocket
 		ServerSocket ss = new ServerSocket(port);
 		threadPool = Executors.newFixedThreadPool(100);
 		logger.info("Server started on port " + port);
 
-		// Listen for client connections
-		while (true) {
+		// listen for client connections
+		while (true) // while can ensure continuous working, but once can only listen one client
+		{
+			// Accept client connection
 			Socket socket = ss.accept();
-			threadPool.submit(() -> handleRequest(socket, directory));
-		}
-	}
-
-	private static void handleRequest(Socket socket, String directory) {
-		try (InputStream is = socket.getInputStream();
-			 OutputStream os = socket.getOutputStream();
-			 BufferedReader br = new BufferedReader(new InputStreamReader(is));
-			 PrintWriter pw = new PrintWriter(os, true)) {
-
-			logger.info("Accepted connection from " + socket.getInetAddress());
-
-			// Read the request line
-			String firstLine = br.readLine();
-			if (firstLine == null || firstLine.isEmpty()) {
-				sendErrorResponse(os, 400, "Bad Request");
-				return;
-			}
-
-			String[] firstLineParts = firstLine.split(" ");
-			if (firstLineParts.length != 3) {
-				sendErrorResponse(os, 400, "Bad Request");
-				return;
-			}
-
-			String method = firstLineParts[0];
-			String uri = firstLineParts[1];
-			String httpVersion = firstLineParts[2];
-
-			// Check for valid HTTP version
-			if (!httpVersion.equals("HTTP/1.1")) {
-				sendErrorResponse(os, 505, "HTTP Version Not Supported");
-				return;
-			}
-
-			// Check for valid method
-			if (method.equals("POST") || method.equals("PUT")) {
-				sendErrorResponse(os, 405, "Method Not Allowed");
-				return;
-			}
-
-			// Check for forbidden URI
-			if (uri.contains("..")) {
-				sendErrorResponse(os, 403, "Forbidden");
-				return;
-			}
-
-			File requestFile = new File(directory, uri);
-			if (!requestFile.exists()) {
-				sendErrorResponse(os, 404, "Not Found");
-				return;
-			}
-			if (!requestFile.canRead()) {
-				sendErrorResponse(os, 403, "Forbidden");
-				return;
-			}
-
-			// Read headers (until an empty line is encountered)
-			Map<String, String> headers = new HashMap<>();
-			String headerLine;
-			while ((headerLine = br.readLine()) != null && !headerLine.trim().isEmpty()) {
-				logger.info("Header: " + headerLine);
-				String[] headerParts = headerLine.split(":", 2);
-				if (headerParts.length == 2) {
-					headers.put(headerParts[0].trim().toLowerCase(), headerParts[1].trim());
-				}
-			}
-
-			// If no empty line (CRLF) is found, return Bad Request
-			if (headerLine == null || headerLine.isEmpty()) {
-				sendErrorResponse(os, 400, "Bad Request");
-				return;
-			}
-
-			// Read request body if needed
-			int contentLength = 0;
-			if (headers.containsKey("content-length")) {
+			// Handle client request in a new thread
+			threadPool.submit(() -> {
 				try {
-					contentLength = Integer.parseInt(headers.get("content-length"));
-				} catch (NumberFormatException e) {
-					sendErrorResponse(os, 400, "Bad Request");
-					return;
+					logger.info("Accepted connection from " + socket.getInetAddress());
+
+					// open tube for client request and send response
+					InputStream is = socket.getInputStream();
+					OutputStream os = socket.getOutputStream();
+					// read input data using byte， use ByteArrayOutputStream to write byte data into memory with bytearray
+					ByteArrayOutputStream baos = new ByteArrayOutputStream();
+					byte[] bytes = new byte[1024];
+					int b;
+					// write byte Stream into byte array
+					while ((b = is.read(bytes)) != -1) {
+						baos.write(bytes, 0, b);
+						byte[] data = baos.toByteArray();
+						// as the boundary is r,n=13,10
+						if (data.length > 4 &&
+								data[data.length - 4] == 13 && // r
+								data[data.length - 3] == 10 && // n
+								data[data.length - 2] == 13 && // r
+								data[data.length - 1] == 10) { // n
+							break;
+						}
+					}
+					// Convert bytes to string and parse firstline and header
+					String head = new String(baos.toByteArray(), "UTF-8");
+					BufferedReader br = new BufferedReader(new StringReader(head));
+					int content_Length = 0;
+					String headerString;
+					String FirstLine = br.readLine(); // use to error handling
+					String[] firstline = FirstLine.split(" ");
+					String method = firstline[0];
+					String URI = firstline[1];
+					String http_version = firstline[2];
+					String RequestFilepath = directory + URI;
+					File RequestFile = new File(RequestFilepath);
+
+					if (FirstLine == null || FirstLine.isEmpty()) {
+						// examine first line of header is null or not
+						sendErrorResponse(os, 400, "bad request");
+						socket.close();
+						return;
+					}
+					if (firstline.length != 3) { // examine the component of the first line is valid or not
+						sendErrorResponse(os, 400, "bad request");
+						socket.close();
+						return;
+					}
+					// use else-if means when client meets first problem, return alert and do not continue
+					if (method.equals("POST") || method.equals("PUT")) {
+						sendErrorResponse(os, 405, "POST or PUT are not allowed");
+						socket.close();
+						return;
+					}
+					if (!http_version.equals("HTTP/1.1")) {
+						sendErrorResponse(os, 505, "Version Not Supported if the protocol is anything other than HTTP/1.1");
+						socket.close();
+						return;
+					}
+					if (URI.contains("..")) {
+						sendErrorResponse(os, 403, "Forbidden");
+						socket.close();
+						return;
+					}
+					if (!method.equals("GET") && !method.equals("HEAD") && !method.equals("POST") && !method.equals("PUT")) {
+						sendErrorResponse(os, 501, "invalid method");
+						socket.close();
+						return;
+					}
+					if (!RequestFile.exists()) {
+						sendErrorResponse(os, 404, "File Not Found");
+						socket.close();
+						return;
+					}
+					if (!RequestFile.canRead()) {
+						sendErrorResponse(os, 403, "Permission denied");
+						socket.close();
+						return;
+					}
+					// parse header
+					Map<String, String> headers = new HashMap<>();
+					while ((FirstLine = br.readLine()) != null && !FirstLine.isEmpty()) {
+						logger.info("Header: " + FirstLine);
+						// input the name and content in map
+						String[] headerParts = FirstLine.split(":", 2);
+						if (headerParts.length == 2) {
+							String name = headerParts[0].trim().toLowerCase(); // 转换为小写
+							String value = headerParts[1].trim();
+							headers.put(name, value);
+						}
+					}
+
+					if (content_Length > 0) {
+						byte[] content = new byte[content_Length];
+						int bytesRead = is.read(content, 0, content_Length); // Read the exact number of bytes
+						System.out.println("Message Body (bytes): " + new String(content)); // Optional: log the body as a string
+					}
+
+					// Send true HTTP response to the client
+					PrintWriter pw = new PrintWriter(os, true);
+					pw.println("HTTP/1.1 200 OK");
+					pw.println("Content-Type: " + judgeContentType(RequestFilepath));
+					pw.println("Server: TianshiServer");
+					pw.println("Content-Length: ");//+ RequestFile.length());
+					pw.println();
+					pw.flush();
+					os.flush();
+					/*
+					FileInputStream fis = new FileInputStream(RequestFile);
+					BufferedInputStream bis = new BufferedInputStream(fis);
+					byte[] fileTransfer = new byte[1024];
+					int fileTransfernum;
+					while ((fileTransfernum = bis.read(fileTransfer)) != -1) {
+						os.write(fileTransfer, 0, fileTransfernum);
+					}
+					os.flush();
+					*/
+					socket.close();
+				} catch (IOException e) {
+					logger.error("Error handling client request", e);
+				} finally {
+					try {
+						socket.close();
+					} catch (IOException e) {
+						logger.error("Error closing socket", e);
+					}
 				}
-			}
-
-			// Read request body
-			byte[] body = new byte[contentLength];
-			if (contentLength > 0) {
-				int bytesRead = 0;
-				while (bytesRead < contentLength) {
-					int result = is.read(body, bytesRead, contentLength - bytesRead);
-					if (result == -1) break;
-					bytesRead += result;
-				}
-				logger.info("Request Body (bytes): " + new String(body));
-			}
-
-			// Send response
-			pw.println("HTTP/1.1 200 OK");
-			pw.println("Content-Type: " + judgeContentType(requestFile.getPath()));
-			pw.println("Content-Length: " + requestFile.length());
-			pw.println("Server: TianshiServer");
-			pw.println();
-			pw.flush();
-
-			// Send file content
-			try (FileInputStream fis = new FileInputStream(requestFile);
-				 BufferedInputStream bis = new BufferedInputStream(fis)) {
-				byte[] buffer = new byte[1024];
-				int bytesRead;
-				while ((bytesRead = bis.read(buffer)) != -1) {
-					os.write(buffer, 0, bytesRead);
-				}
-				os.flush();
-			}
-
-		} catch (IOException e) {
-			logger.error("Error handling client request", e);
-		} finally {
-			try {
-				socket.close();
-			} catch (IOException e) {
-				logger.error("Error closing socket", e);
-			}
+			});
 		}
 	}
-
 
 	private static void sendErrorResponse(OutputStream os, int statusCode, String statusMessage) throws IOException {
 		PrintWriter pw = new PrintWriter(os);
