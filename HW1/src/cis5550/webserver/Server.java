@@ -2,14 +2,11 @@ package cis5550.webserver;
 
 import java.io.*;
 import java.net.*;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.charset.StandardCharsets;
 
 public class Server {
 
-
-	static final String SERVER_NAME = "TianshiServer";
-	private static final int NUM_WORKERS = 100;
+	static final String SERVER_NAME = "SimpleWebServer/1.0";
 
 	public static void main(String[] args) {
 		if (args.length != 2) {
@@ -43,15 +40,19 @@ class ClientHandler implements Runnable {
 
 	@Override
 	public void run() {
-		try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+		try (InputStream in = clientSocket.getInputStream();
 			 OutputStream out = clientSocket.getOutputStream()) {
 
-			String requestLine = in.readLine();
-			if (requestLine == null || requestLine.isEmpty()) {
+			// Read the entire request including headers
+			String request = readFullRequest(in);
+			if (request == null || request.isEmpty()) {
 				sendError(out, 400, "Bad Request");
 				return;
 			}
 
+			// Parse the request line
+			String[] requestLines = request.split("\r\n");
+			String requestLine = requestLines[0];
 			String[] requestParts = requestLine.split(" ");
 			if (requestParts.length != 3) {
 				sendError(out, 400, "Bad Request");
@@ -77,6 +78,7 @@ class ClientHandler implements Runnable {
 				return;
 			}
 
+			// Locate the file based on the directory and path
 			File file = new File(directory, path);
 			if (!file.exists()) {
 				sendError(out, 404, "Not Found");
@@ -101,6 +103,29 @@ class ClientHandler implements Runnable {
 		}
 	}
 
+	private String readFullRequest(InputStream in) throws IOException {
+		BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+		StringBuilder requestBuilder = new StringBuilder();
+		String line;
+
+		// Keep reading until we encounter a double CRLF (indicating the end of headers)
+		boolean lastLineWasEmpty = false;
+		while ((line = reader.readLine()) != null) {
+			if (line.isEmpty()) {
+				if (lastLineWasEmpty) { // Found the double CRLF
+					break;
+				} else {
+					lastLineWasEmpty = true;
+				}
+			} else {
+				lastLineWasEmpty = false;
+			}
+			requestBuilder.append(line).append("\r\n");
+		}
+
+		return requestBuilder.toString();
+	}
+
 	private void sendError(OutputStream out, int statusCode, String statusMessage) throws IOException {
 		String response = "HTTP/1.1 " + statusCode + " " + statusMessage + "\r\n" +
 				"Content-Length: 0\r\n" +
@@ -113,6 +138,7 @@ class ClientHandler implements Runnable {
 		String contentType = getContentType(file);
 		long contentLength = file.length();
 
+		// Response headers
 		StringBuilder responseHeader = new StringBuilder();
 		responseHeader.append("HTTP/1.1 200 OK\r\n")
 				.append("Content-Type: ").append(contentType).append("\r\n")
@@ -122,6 +148,7 @@ class ClientHandler implements Runnable {
 
 		out.write(responseHeader.toString().getBytes());
 
+		// If GET request, include the body (the actual file content)
 		if (includeBody) {
 			try (FileInputStream fileIn = new FileInputStream(file)) {
 				byte[] buffer = new byte[1024];
