@@ -35,7 +35,7 @@ public class Server
 		}
 		// Create ServerSocket
 		ServerSocket ss = new ServerSocket(port);
-		threadPool = Executors.newFixedThreadPool(100);
+		threadPool = Executors.newFixedThreadPool(999);
 		logger.info("Server started on port " + port);
 
 		// listen for client connections
@@ -52,25 +52,8 @@ public class Server
 					InputStream is = socket.getInputStream();
 					OutputStream os = socket.getOutputStream();
 					// read input data using byte， use ByteArrayOutputStream to write byte data into memory with bytearray
-					ByteArrayOutputStream baos = new ByteArrayOutputStream();
-					byte[] bytes = new byte[1024];
-					int b;
-					// write byte Stream into byte array
-					while ((b = is.read(bytes)) != -1) {
-						baos.write(bytes, 0, b);
-						byte[] data = baos.toByteArray();
-						// as the boundary is r,n=13,10
-						if (data.length > 4 &&
-								data[data.length - 4] == 13 && // r
-								data[data.length - 3] == 10 && // n
-								data[data.length - 2] == 13 && // r
-								data[data.length - 1] == 10) { // n
-							break;
-						}
-					}
 					// Convert bytes to string and parse firstline and header
-					String head = new String(baos.toByteArray(), "UTF-8");
-					BufferedReader br = new BufferedReader(new StringReader(head));
+					BufferedReader br = new BufferedReader(new InputStreamReader(is));
 					int content_Length = 0;
 					String headerString;
 					String FirstLine = br.readLine(); // use to error handling
@@ -124,16 +107,22 @@ public class Server
 						return;
 					}
 					// parse header
-					Map<String, String> headers = new HashMap<>();
-					while ((FirstLine = br.readLine()) != null && !FirstLine.isEmpty()) {
-						logger.info("Header: " + FirstLine);
+					Map<String, String> header_s = new HashMap<>();
+					String headerLine;
+					StringBuilder headers = new StringBuilder();
+					while ((headerLine = br.readLine()) != null && !headerLine.isEmpty()) {
+						headers.append(headerLine).append("\r\n");
+						logger.info("Header: " + headerLine);
 						// input the name and content in map
-						String[] headerParts = FirstLine.split(":", 2);
+						String[] headerParts = headerLine.split(":", 2);
 						if (headerParts.length == 2) {
 							String name = headerParts[0].trim().toLowerCase(); // 转换为小写
 							String value = headerParts[1].trim();
-							headers.put(name, value);
+							header_s.put(name, value);
 						}
+					}
+					if(headerLine==null){
+						sendErrorResponse(os, 400, "Bad Request");
 					}
 
 					if (content_Length > 0) {
@@ -147,11 +136,9 @@ public class Server
 					pw.println("HTTP/1.1 200 OK");
 					pw.println("Content-Type: " + judgeContentType(RequestFilepath));
 					pw.println("Server: TianshiServer");
-					pw.println("Content-Length: ");//+ RequestFile.length());
+					pw.println("Content-Length: " + RequestFile.length());
 					pw.println();
-					pw.flush();
-					os.flush();
-					/*
+
 					FileInputStream fis = new FileInputStream(RequestFile);
 					BufferedInputStream bis = new BufferedInputStream(fis);
 					byte[] fileTransfer = new byte[1024];
@@ -160,7 +147,6 @@ public class Server
 						os.write(fileTransfer, 0, fileTransfernum);
 					}
 					os.flush();
-					*/
 					socket.close();
 				} catch (IOException e) {
 					logger.error("Error handling client request", e);
