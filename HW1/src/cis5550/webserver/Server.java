@@ -3,188 +3,195 @@ package cis5550.webserver;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import cis5550.tools.Logger;
 
-public class Server {
+public class Server
+{
 	private static final Logger logger = Logger.getLogger(Server.class);
-	private static final int CR = 13;
-	private static final int LF = 10;
-	private static final byte[] CRLF = {CR, LF, CR, LF};
+	// use threadPool realize concurrency
+	private static ExecutorService threadPool;
 
-	public static void main(String[] args) {
-		if (args.length != 2) {
-			System.out.println("苗天石");
+	public static void main(String[] args) throws IOException {
+		// Check for correct number of arguments
+		if (args.length != 2)
+		{
+			logger.error("Invalid amount of parameters. Expected two, but got " + args.length);
+			System.out.println("Written by Tianshi Miao");
 			return;
 		}
-
+		// Verify whether port and directory exist
 		int port = Integer.parseInt(args[0]);
-		String rootDirectory = args[1];
-
-		try (ServerSocket serverSocket = new ServerSocket(port)) {
-			logger.info("Server is listening on port " + port);
-
-			while (true) {
-				try {
-					Socket socket = serverSocket.accept();
-					logger.info("Client connected from " + socket.getRemoteSocketAddress());
-					// Create a new thread for each connection
-					new Thread(() -> handleRequest(socket, rootDirectory)).start();
-				} catch (Exception e) {
-					logger.error("Exception occurred while accepting connection: ", e);
-				}
-			}
-		} catch (Exception e) {
-			logger.error("Exception occurred while setting up server: ", e);
+		String directory = args[1];
+		File directoryFile = new File(directory);
+		if (!directoryFile.exists() || !directoryFile.isDirectory())
+		{
+			logger.error("Directory path " + directory + " is not valid");
+			return;
 		}
-	}
+		// Create ServerSocket
+		ServerSocket ss = new ServerSocket(port);
+		threadPool = Executors.newFixedThreadPool(999);
+		logger.info("Server started on port " + port);
 
-	private static void handleRequest(Socket socket, String rootDirectory) {
-		try {
-			InputStream inputStream = socket.getInputStream();
-			OutputStream outputStream = socket.getOutputStream();
+		// listen for client connections
+		while (true) // while can ensure continuous working, but once can only listen one client
+		{
+			// Accept client connection
+			Socket socket = ss.accept();
+			// Handle client request in a new thread
+			threadPool.submit(() -> {
+				try {
+					logger.info("Accepted connection from " + socket.getInetAddress());
 
-			boolean keepAlive = false;
-
-			while (true) {
-				byte[] requestBytes = readRequestBytes(inputStream);
-
-				// Convert bytes to string and parse headers
-				String requestString = new String(requestBytes);
-				boolean isError = false;
-				String errorMessage = "";
-				String filePath = "";
-
-				// Determine the response based on the request
-				if (!isValidRequest(requestString)) {
-					isError = true;
-					errorMessage = "400 Bad Request";
-				} else if (!isValidMethod(requestString)) {
-					isError = true;
-					errorMessage = "405 Method Not Allowed";
-				} else if (!isValidProtocol(requestString)) {
-					isError = true;
-					errorMessage = "505 HTTP Version Not Supported";
-				} else {
-					filePath = extractFilePath(requestString);
-					if (filePath.contains("..")) {
-						isError = true;
-						errorMessage = "403 Forbidden";
-					} else {
-						File file = new File(rootDirectory, filePath);
-						if (!file.exists()) {
-							isError = true;
-							errorMessage = "404 Not Found";
-						} else if (!file.canRead()) {
-							isError = true;
-							errorMessage = "403 Forbidden";
+					// open tube for client request and send response
+					InputStream is = socket.getInputStream();
+					OutputStream os = socket.getOutputStream();
+					// read input data using byte， use ByteArrayOutputStream to write byte data into memory with bytearray
+					ByteArrayOutputStream baos = new ByteArrayOutputStream();
+					byte[] bytes = new byte[1024];
+					int b;
+					// write byte Stream into byte array
+					while ((b = is.read(bytes)) != -1) {
+						baos.write(bytes, 0, b);
+						byte[] data = baos.toByteArray();
+						// as the boundary is r,n=13,10
+						if (data.length > 4 &&
+								data[data.length - 4] == 13 && // r
+								data[data.length - 3] == 10 && // n
+								data[data.length - 2] == 13 && // r
+								data[data.length - 1] == 10) { // n
+							break;
 						}
 					}
+					// Convert bytes to string and parse firstline and header
+					String head = new String(baos.toByteArray(), "UTF-8");
+					BufferedReader br = new BufferedReader(new StringReader(head));
+					int content_Length = 0;
+					String headerString;
+					String FirstLine = br.readLine(); // use to error handling
+					String[] firstline = FirstLine.split(" ");
+					String method = firstline[0];
+					String URI = firstline[1];
+					String http_version = firstline[2];
+					String RequestFilepath = directory + URI;
+					File RequestFile = new File(RequestFilepath);
+
+					if (FirstLine == null || FirstLine.isEmpty()) {
+						// examine first line of header is null or not
+						sendErrorResponse(os, 400, "bad request");
+						socket.close();
+						return;
+					}
+					if (firstline.length != 3) { // examine the component of the first line is valid or not
+						sendErrorResponse(os, 400, "bad request");
+						socket.close();
+						return;
+					}
+					// use else-if means when client meets first problem, return alert and do not continue
+					if (method.equals("POST") || method.equals("PUT")) {
+						sendErrorResponse(os, 405, "POST or PUT are not allowed");
+						socket.close();
+						return;
+					}
+					if (!http_version.equals("HTTP/1.1")) {
+						sendErrorResponse(os, 505, "Version Not Supported if the protocol is anything other than HTTP/1.1");
+						socket.close();
+						return;
+					}
+					if (URI.contains("..")) {
+						sendErrorResponse(os, 403, "Forbidden");
+						socket.close();
+						return;
+					}
+					if (!method.equals("GET") && !method.equals("HEAD") && !method.equals("POST") && !method.equals("PUT")) {
+						sendErrorResponse(os, 501, "invalid method");
+						socket.close();
+						return;
+					}
+					if (!RequestFile.exists()) {
+						sendErrorResponse(os, 404, "File Not Found");
+						socket.close();
+						return;
+					}
+					if (!RequestFile.canRead()) {
+						sendErrorResponse(os, 403, "Permission denied");
+						socket.close();
+						return;
+					}
+					// parse header
+					Map<String, String> headers = new HashMap<>();
+					String headerLine;
+					while ((headerLine = br.readLine()) != null && !headerLine.isEmpty()) {
+						logger.info("Header: " + headerLine);
+						// input the name and content in map
+						String[] headerParts = headerLine.split(":", 2);
+						if (headerParts.length == 2) {
+							String name = headerParts[0].trim().toLowerCase(); // 转换为小写
+							String value = headerParts[1].trim();
+							headers.put(name, value);
+						}
+					}
+
+					if (content_Length > 0) {
+						byte[] content = new byte[content_Length];
+						int bytesRead = is.read(content, 0, content_Length); // Read the exact number of bytes
+						System.out.println("Message Body (bytes): " + new String(content)); // Optional: log the body as a string
+					}
+
+					// Send true HTTP response to the client
+					PrintWriter pw = new PrintWriter(os, true);
+					pw.println("HTTP/1.1 200 OK");
+					pw.println("Content-Type: " + judgeContentType(RequestFilepath));
+					pw.println("Server: TianshiServer");
+					pw.println("Content-Length: " + RequestFile.length());
+					pw.println();
+
+					FileInputStream fis = new FileInputStream(RequestFile);
+					BufferedInputStream bis = new BufferedInputStream(fis);
+					byte[] fileTransfer = new byte[1024];
+					int fileTransfernum;
+					while ((fileTransfernum = bis.read(fileTransfer)) != -1) {
+						os.write(fileTransfer, 0, fileTransfernum);
+					}
+					os.flush();
+					socket.close();
+				} catch (IOException e) {
+					logger.error("Error handling client request", e);
+				} finally {
+					try {
+						socket.close();
+					} catch (IOException e) {
+						logger.error("Error closing socket", e);
+					}
 				}
-
-				if (isError) {
-					sendErrorResponse(outputStream, errorMessage);
-				} else {
-					sendFileResponse(outputStream, filePath, rootDirectory);
-				}
-
-				// Check if the client supports persistent connections
-				keepAlive = requestString.contains("Connection: keep-alive");
-				if (!keepAlive) {
-					break; // Close the connection after the response if not persistent
-				}
-			}
-		} catch (Exception e) {
-			logger.error("Exception occurred while handling request: ", e);
-		} finally {
-			try {
-				socket.close();
-			} catch (IOException e) {
-				logger.error("Exception occurred while closing socket: ", e);
-			}
+			});
 		}
 	}
 
-	private static byte[] readRequestBytes(InputStream inputStream) throws IOException {
-		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-		int prevByte = -1;
-		int currentByte;
-
-		while ((currentByte = inputStream.read()) != -1) {
-			byteArrayOutputStream.write(currentByte);
-			if (prevByte == CR && currentByte == LF) {
-				byte[] bytes = byteArrayOutputStream.toByteArray();
-				// Check if last bytes are CRLFCRLF
-				if (bytes.length >= 4 && bytes[bytes.length - 4] == CR && bytes[bytes.length - 3] == LF &&
-						bytes[bytes.length - 2] == CR && bytes[bytes.length - 1] == LF) {
-					return bytes;
-				}
-			}
-			prevByte = currentByte;
-		}
-		return byteArrayOutputStream.toByteArray();
+	private static void sendErrorResponse(OutputStream os, int statusCode, String statusMessage) throws IOException {
+		PrintWriter pw = new PrintWriter(os);
+		pw.println("HTTP/1.1 " + statusCode + " " + statusMessage);
+		pw.println("Content-Type: text/plain");
+		pw.println("Content-Length: " + statusMessage.length());
+		pw.println();
+		pw.println(statusMessage);
+		pw.flush();
 	}
 
-	private static boolean isValidRequest(String requestString) {
-		return requestString.contains("GET") || requestString.contains("HEAD");
-	}
-
-	private static boolean isValidMethod(String requestString) {
-		return requestString.contains("GET") || requestString.contains("HEAD");
-	}
-
-	private static boolean isValidProtocol(String requestString) {
-		return requestString.contains("HTTP/1.1");
-	}
-
-	private static String extractFilePath(String requestString) {
-		String[] lines = requestString.split("\r\n");
-		if (lines.length > 0) {
-			String[] requestLineParts = lines[0].split(" ");
-			if (requestLineParts.length > 1) {
-				return requestLineParts[1];
-			}
-		}
-		return "";
-	}
-
-	private static void sendErrorResponse(OutputStream outputStream, String errorMessage) throws Exception {
-		try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream))) {
-			writer.println("HTTP/1.1 " + errorMessage);
-			writer.println("Content-Type: text/plain");
-			writer.println("Server: SimpleServer");
-			writer.println("Content-Length: " + errorMessage.length());
-			writer.println(); // Empty line to end headers
-			writer.println(errorMessage);
-			writer.flush();
-		}
-	}
-
-	private static void sendFileResponse(OutputStream outputStream, String filePath, String rootDirectory) throws Exception {
-		File file = new File(rootDirectory, filePath);
-		String contentType = "application/octet-stream";
-		if (filePath.endsWith(".txt")) {
-			contentType = "text/plain";
-		}
-		// Add more content types if needed
-
-		try (FileInputStream fileInputStream = new FileInputStream(file);
-			 PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream))) {
-
-			writer.println("HTTP/1.1 200 OK");
-			writer.println("Content-Type: " + contentType);
-			writer.println("Content-Length: " + file.length());
-			writer.println(); // Empty line to end headers
-			writer.flush(); // Ensure headers are sent before file data
-
-			byte[] buffer = new byte[1024];
-			int bytesRead;
-			while ((bytesRead = fileInputStream.read(buffer)) != -1) {
-				outputStream.write(buffer, 0, bytesRead);
-			}
-			outputStream.flush(); // Ensure all file data is sent
-		} catch (IOException e) {
-			logger.error("Error sending file: ", e);
-			sendErrorResponse(outputStream, "500 Internal Server Error");
+	private static String judgeContentType(String filepath) {
+		if (filepath.endsWith(".jpg") || filepath.endsWith(".jpeg")) {
+			return "image/jpeg";
+		} else if (filepath.endsWith(".txt")) {
+			return "text/plain";
+		} else if (filepath.endsWith(".html")) {
+			return "text/html";
+		} else {
+			return "application/octet-stream";
 		}
 	}
 }
