@@ -3,8 +3,6 @@ package cis5550.webserver;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.Map;
 
 public class Server {
 
@@ -31,109 +29,113 @@ public class Server {
 
 		// Listen for client connections
 		while (true) {
-			// Accept client connection
-			Socket socket = serverSocket.accept();
-			System.out.println("Accepted connection from " + socket.getInetAddress());
+			try {
+				// Accept client connection
+				Socket socket = serverSocket.accept();
+				System.out.println("Accepted connection from " + socket.getInetAddress());
 
-			// Open streams for client request and response
-			InputStream is = socket.getInputStream();
-			OutputStream os = socket.getOutputStream();
+				// Open streams for client request and response
+				InputStream is = socket.getInputStream();
+				OutputStream os = socket.getOutputStream();
 
-			// Read the input data, searching for the end of the headers (double CRLF)
-			StringBuilder headersBuilder = new StringBuilder();
-			int prevByte = -1;
-			int currByte = -1;
-			boolean foundDoubleCRLF = false;
+				// Read the input data, searching for the end of the headers (double CRLF)
+				StringBuilder headersBuilder = new StringBuilder();
+				int prevByte = -1;
+				int currByte = -1;
+				boolean foundDoubleCRLF = false;
 
-			while ((currByte = is.read()) != -1) {
-				headersBuilder.append((char) currByte);
+				while ((currByte = is.read()) != -1) {
+					headersBuilder.append((char) currByte);
 
-				// Check if we have reached the double CRLF (13, 10, 13, 10)
-				if (prevByte == 13 && currByte == 10) {
-					if (headersBuilder.length() >= 4 &&
-							headersBuilder.charAt(headersBuilder.length() - 4) == 13 &&
-							headersBuilder.charAt(headersBuilder.length() - 3) == 10 &&
-							headersBuilder.charAt(headersBuilder.length() - 2) == 13 &&
-							headersBuilder.charAt(headersBuilder.length() - 1) == 10) {
-						foundDoubleCRLF = true;
-						break;
+					// Check if we have reached the double CRLF (13, 10, 13, 10)
+					if (prevByte == 13 && currByte == 10) {
+						if (headersBuilder.length() >= 4 &&
+								headersBuilder.charAt(headersBuilder.length() - 4) == 13 &&
+								headersBuilder.charAt(headersBuilder.length() - 3) == 10 &&
+								headersBuilder.charAt(headersBuilder.length() - 2) == 13 &&
+								headersBuilder.charAt(headersBuilder.length() - 1) == 10) {
+							foundDoubleCRLF = true;
+							break;
+						}
 					}
+					prevByte = currByte;
 				}
-				prevByte = currByte;
-			}
 
-			// If we didn't find the double CRLF, it's an invalid request
-			if (!foundDoubleCRLF) {
-				sendErrorResponse(os, 400, "Bad Request");
+				// If we didn't find the double CRLF, it's an invalid request
+				if (!foundDoubleCRLF) {
+					sendErrorResponse(os, 400, "Bad Request");
+					socket.close();
+					continue;
+				}
+
+				// Parse the headers
+				String head = headersBuilder.toString();
+				BufferedReader br = new BufferedReader(new StringReader(head));
+
+				// Read the first line (Request-Line)
+				String firstLine = br.readLine();
+				if (firstLine == null || firstLine.isEmpty()) {
+					sendErrorResponse(os, 400, "Bad Request");
+					socket.close();
+					continue;
+				}
+
+				String[] firstLineParts = firstLine.split(" ");
+				if (firstLineParts.length != 3) {
+					sendErrorResponse(os, 400, "Bad Request");
+					socket.close();
+					continue;
+				}
+
+				String method = firstLineParts[0];
+				String uri = firstLineParts[1];
+				String httpVersion = firstLineParts[2];
+
+				if (!httpVersion.equals("HTTP/1.1")) {
+					sendErrorResponse(os, 505, "HTTP Version Not Supported");
+					socket.close();
+					continue;
+				}
+
+				// Check if the URI is valid
+				if (uri.contains("..")) {
+					sendErrorResponse(os, 403, "Forbidden");
+					socket.close();
+					continue;
+				}
+
+				// Only support GET and HEAD methods
+				if (!method.equals("GET") && !method.equals("HEAD")) {
+					sendErrorResponse(os, 501, "Not Implemented");
+					socket.close();
+					continue;
+				}
+
+				// Handle file request
+				File requestedFile = new File(directory + uri);
+				if (!requestedFile.exists()) {
+					sendErrorResponse(os, 404, "Not Found");
+					socket.close();
+					continue;
+				}
+
+				if (!requestedFile.canRead()) {
+					sendErrorResponse(os, 403, "Forbidden");
+					socket.close();
+					continue;
+				}
+
+				// Send response
+				sendResponse(os, 200, "OK", requestedFile);
 				socket.close();
-				continue;
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
-
-			// Parse the headers
-			String head = headersBuilder.toString();
-			BufferedReader br = new BufferedReader(new StringReader(head));
-
-			// Read the first line (Request-Line)
-			String firstLine = br.readLine();
-			if (firstLine == null || firstLine.isEmpty()) {
-				sendErrorResponse(os, 400, "Bad Request");
-				socket.close();
-				continue;
-			}
-
-			String[] firstLineParts = firstLine.split(" ");
-			if (firstLineParts.length != 3) {
-				sendErrorResponse(os, 400, "Bad Request");
-				socket.close();
-				continue;
-			}
-
-			String method = firstLineParts[0];
-			String uri = firstLineParts[1];
-			String httpVersion = firstLineParts[2];
-
-			if (!httpVersion.equals("HTTP/1.1")) {
-				sendErrorResponse(os, 505, "HTTP Version Not Supported");
-				socket.close();
-				continue;
-			}
-
-			// Check if the URI is valid
-			if (uri.contains("..")) {
-				sendErrorResponse(os, 403, "Forbidden");
-				socket.close();
-				continue;
-			}
-
-			// Only support GET and HEAD methods
-			if (!method.equals("GET") && !method.equals("HEAD")) {
-				sendErrorResponse(os, 501, "Not Implemented");
-				socket.close();
-				continue;
-			}
-
-			// Handle file request
-			File requestedFile = new File(directory + uri);
-			if (!requestedFile.exists()) {
-				sendErrorResponse(os, 404, "Not Found");
-				socket.close();
-				continue;
-			}
-
-			if (!requestedFile.canRead()) {
-				sendErrorResponse(os, 403, "Forbidden");
-				socket.close();
-				continue;
-			}
-
-			// Send response
-			sendResponse(os, 200, "OK", requestedFile);
-			socket.close();
 		}
 	}
 
 	private static void sendErrorResponse(OutputStream os, int statusCode, String statusMessage) throws IOException {
-		PrintWriter pw = new PrintWriter(os);
+		PrintWriter pw = new PrintWriter(os, true);
 		pw.println("HTTP/1.1 " + statusCode + " " + statusMessage);
 		pw.println("Content-Type: text/plain");
 		pw.println("Content-Length: " + statusMessage.length());
@@ -143,7 +145,7 @@ public class Server {
 	}
 
 	private static void sendResponse(OutputStream os, int statusCode, String statusMessage, File file) throws IOException {
-		PrintWriter pw = new PrintWriter(os);
+		PrintWriter pw = new PrintWriter(os, true);
 		pw.println("HTTP/1.1 " + statusCode + " " + statusMessage);
 		pw.println("Content-Type: " + judgeContentType(file.getName()));
 		pw.println("Content-Length: " + file.length());
