@@ -3,13 +3,11 @@ package cis5550.webserver;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import cis5550.tools.Logger;
+
 public class Server {
     private static final Logger logger = Logger.getLogger(Server.class);
 
@@ -28,118 +26,121 @@ public class Server {
             return;
         }
 
-        ServerSocket serverSocket = new ServerSocket(port);
+        ServerSocket ss = new ServerSocket(port);
         logger.info("Server started on port " + port);
 
         while (true) {
-            Socket socket = serverSocket.accept();
+            Socket socket = ss.accept();
             logger.info("Accepted connection from " + socket.getInetAddress());
 
-            new Thread(() -> handleClient(socket, directory)).start();
-        }
-    }
+            InputStream is = socket.getInputStream();
+            OutputStream os = socket.getOutputStream();
 
-    private static void handleClient(Socket socket, String directory) {
-        try (InputStream is = socket.getInputStream(); OutputStream os = socket.getOutputStream()) {
-            boolean keepAlive = true; // 默认开启持久连接
+            boolean keepAlive = true;  // 默认情况下保持连接
 
-            while (keepAlive) {
-                BufferedReader br = new BufferedReader(new InputStreamReader(is));
-                String firstLine = br.readLine();
-
-                if (firstLine == null || firstLine.isEmpty()) {
-                    sendErrorResponse(os, 400, "Bad Request");
-                    return;
-                }
-
-                String[] requestParts = firstLine.split(" ");
-                if (requestParts.length != 3) {
-                    sendErrorResponse(os, 400, "Bad Request");
-                    return;
-                }
-
-                String method = requestParts[0];
-                String uri = requestParts[1];
-                String httpVersion = requestParts[2];
-
-                if (!httpVersion.equals("HTTP/1.1")) {
-                    sendErrorResponse(os, 505, "HTTP Version Not Supported");
-                    return;
-                }
-
-                // 读取请求头
-                String headerLine;
-                int contentLength = 0;
-                boolean connectionClose = false; // 标记是否为 Connection: close
-
-                while ((headerLine = br.readLine()) != null && !headerLine.isEmpty()) {
-                    logger.info("Header: " + headerLine);
-                    if (headerLine.toLowerCase().startsWith("content-length")) {
-                        contentLength = Integer.parseInt(headerLine.split(":")[1].trim());
-                    } else if (headerLine.toLowerCase().startsWith("connection")) {
-                        String connectionValue = headerLine.split(":")[1].trim().toLowerCase();
-                        if (connectionValue.equals("close")) {
-                            connectionClose = true;
+            try {
+                do {
+                    // Read the request headers
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                    String line;
+                    StringBuilder headerBuilder = new StringBuilder();
+                    while (!(line = reader.readLine()).isEmpty()) {
+                        headerBuilder.append(line).append("\r\n");
+                        if (line.toLowerCase().startsWith("connection: close")) {
+                            keepAlive = false; // 客户端明确要求关闭连接
                         }
                     }
-                }
+                    headerBuilder.append("\r\n"); // End of headers
 
-                // 判断是否要关闭连接
-                if (connectionClose) {
-                    keepAlive = false;
-                }
+                    String headers = headerBuilder.toString();
+                    String[] lines = headers.split("\r\n");
+                    String[] firstLineParts = lines[0].split(" ");
 
-                File requestFile = new File(directory + uri);
-                if (!requestFile.exists()) {
-                    sendErrorResponse(os, 404, "File Not Found");
-                    return;
-                }
-
-                if (!requestFile.canRead()) {
-                    sendErrorResponse(os, 403, "Forbidden");
-                    return;
-                }
-
-                // 发送响应
-                BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os));
-                bw.write("HTTP/1.1 200 OK\r\n");
-                bw.write("Content-Type:" + judgeContentType(requestFile.getAbsolutePath()) + "\r\n");
-                bw.write("Content-Length:" + requestFile.length() + "\r\n");
-                bw.write("Connection: " + (keepAlive ? "keep-alive" : "close") + "\r\n");
-                bw.write("\r\n");
-                bw.flush();
-
-                // 发送文件内容
-                try (FileInputStream fis = new FileInputStream(requestFile);
-                     BufferedInputStream bis = new BufferedInputStream(fis)) {
-                    byte[] buffer = new byte[1024];
-                    int bytesRead;
-                    while ((bytesRead = bis.read(buffer)) != -1) {
-                        os.write(buffer, 0, bytesRead);
+                    if (firstLineParts.length != 3) {
+                        sendErrorResponse(os, 400, "Bad Request", keepAlive);
+                        if (!keepAlive) {
+                            break;
+                        }
+                        continue;
                     }
-                    os.flush();
-                }
 
-                if (!keepAlive) {
-                    logger.info("Closing connection as requested by client.");
-                    socket.close();
-                    break;
+                    String method = firstLineParts[0];
+                    String uri = firstLineParts[1];
+                    String httpVersion = firstLineParts[2];
+                    String requestFilepath = directory + uri;
+                    File requestFile = new File(requestFilepath);
+
+                    // Check method and version
+                    if (method.equals("POST") || method.equals("PUT")) {
+                        sendErrorResponse(os, 405, "POST or PUT are not allowed", keepAlive);
+                    } else if (!httpVersion.equals("HTTP/1.1")) {
+                        sendErrorResponse(os, 505, "HTTP Version Not Supported", keepAlive);
+                    } else if (uri.contains("..")) {
+                        sendErrorResponse(os, 403, "Forbidden", keepAlive);
+                    } else if (!method.equals("GET") && !method.equals("HEAD")) {
+                        sendErrorResponse(os, 501, "Not Implemented", keepAlive);
+                    } else if (!requestFile.exists()) {
+                        sendErrorResponse(os, 404, "File Not Found", keepAlive);
+                    } else if (!requestFile.canRead()) {
+                        sendErrorResponse(os, 403, "Forbidden", keepAlive);
+                    } else {
+                        // Send the actual HTTP response
+                         BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os));
+                             FileInputStream fis = new FileInputStream(requestFile);
+                             BufferedInputStream bis = new BufferedInputStream(fis);
+                             BufferedOutputStream bos = new BufferedOutputStream(os);
+                            // 发送响应头
+                            bw.write("HTTP/1.1 200 OK\r\n");
+                            bw.write("Content-Type: " + judgeContentType(requestFile.getAbsolutePath()) + "\r\n");
+                            bw.write("Server: TianshiServer\r\n");
+                            bw.write("Content-Length: " + requestFile.length() + "\r\n");
+                            bw.write("\r\n"); // 响应头结束
+                            bw.flush();
+
+                            // 发送文件数据
+                            byte[] fileTransfer = new byte[1024];
+                            int fileTransfernum;
+                            while ((fileTransfernum = bis.read(fileTransfer)) != -1) {
+                                bos.write(fileTransfer, 0, fileTransfernum);
+                            }
+                            bos.flush();
+                    }
+
+                    // Check if we should keep the connection alive
+                    if (!keepAlive) {
+                        socket.shutdownOutput(); // 关闭输出流
+                        break;
+                    }
+                } while (keepAlive); // Continue reading requests if keep-alive is true
+            } catch (IOException e) {
+                logger.warn("I/O error: " + e.getMessage());
+            } finally {
+                try {
+                    socket.close(); // Always close the socket
+                } catch (IOException e) {
+                    logger.warn("Failed to close socket: " + e.getMessage());
                 }
             }
-        } catch (IOException e) {
-            logger.error("Error handling client connection: " + e.getMessage());
         }
+
+
     }
 
-    private static void sendErrorResponse(OutputStream os, int statusCode, String statusMessage) throws IOException {
-        PrintWriter pw = new PrintWriter(os);
-        pw.println("HTTP/1.1 " + statusCode + " " + statusMessage);
-        pw.println("Content-Type: text/plain");
-        pw.println("Content-Length: " + statusMessage.length());
-        pw.println();
-        pw.println(statusMessage);
-        pw.flush();
+    private static void sendErrorResponse(OutputStream os, int statusCode, String message, boolean keepAlive) throws IOException {
+        BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os));
+        bw.write("HTTP/1.1 " + statusCode + " " + message + "\r\n");
+        bw.write("Content-Type: text/plain\r\n");
+        bw.write("Content-Length: " + message.length() + "\r\n");
+        if (keepAlive) {
+            bw.write("Connection: keep-alive\r\n");
+        } else {
+            bw.write("Connection: close\r\n");
+        }
+        bw.write("\r\n"); // End of headers
+        bw.write(message);
+        bw.flush();
     }
+
 
     private static String judgeContentType(String filepath) {
         if (filepath.endsWith(".jpg") || filepath.endsWith(".jpeg")) {
@@ -153,4 +154,3 @@ public class Server {
         }
     }
 }
-
