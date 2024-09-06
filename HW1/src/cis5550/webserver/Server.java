@@ -137,9 +137,9 @@ public class Server {
 		pw.println("HTTP/1.1 " + statusCode + " " + statusMessage);
 		pw.println("Content-Type: text/plain");
 		pw.println("Content-Length: " + statusMessage.length());
-		pw.println(); // End of headers
+		pw.println(); // End of headers (two CRLFs)
 		pw.println(statusMessage);
-		pw.flush();
+		pw.flush(); // Ensure all data is sent
 	}
 
 	private static void sendResponse(OutputStream os, int statusCode, String statusMessage, File file) throws IOException {
@@ -147,8 +147,10 @@ public class Server {
 		pw.println("HTTP/1.1 " + statusCode + " " + statusMessage);
 		pw.println("Content-Type: " + judgeContentType(file.getName()));
 		pw.println("Content-Length: " + file.length());
-		pw.println();
+		pw.println(); // End of headers (two CRLFs)
+		pw.flush(); // Ensure headers are sent before body
 
+		// Send the file content
 		FileInputStream fis = new FileInputStream(file);
 		BufferedInputStream bis = new BufferedInputStream(fis);
 		byte[] buffer = new byte[1024];
@@ -156,7 +158,7 @@ public class Server {
 		while ((bytesRead = bis.read(buffer)) != -1) {
 			os.write(buffer, 0, bytesRead);
 		}
-		os.flush();
+		os.flush(); // Ensure all file data is sent
 	}
 
 	private static String judgeContentType(String filepath) {
