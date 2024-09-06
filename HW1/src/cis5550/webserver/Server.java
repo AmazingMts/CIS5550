@@ -1,173 +1,171 @@
 package cis5550.webserver;
 
 import java.io.*;
-import java.net.*;
-import java.nio.charset.StandardCharsets;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Server {
 
-	static final String SERVER_NAME = "SimpleWebServer/1.0";
-
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException {
+		// Check for correct number of arguments
 		if (args.length != 2) {
-			System.out.println("Written by [Your Full Name]");
-			System.exit(1);
+			System.out.println("Invalid amount of parameters. Expected two, but got " + args.length);
+			System.out.println("Written by Tianshi Miao");
+			return;
 		}
 
+		// Verify whether port and directory exist
 		int port = Integer.parseInt(args[0]);
 		String directory = args[1];
-
-		try (ServerSocket serverSocket = new ServerSocket(port)) {
-			System.out.println("Server started on port " + port);
-			while (true) {
-				Socket clientSocket = serverSocket.accept();
-				new Thread(new ClientHandler(clientSocket, directory)).start();
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
+		File directoryFile = new File(directory);
+		if (!directoryFile.exists() || !directoryFile.isDirectory()) {
+			System.out.println("Directory path " + directory + " is not valid");
+			return;
 		}
-	}
-}
 
-class ClientHandler implements Runnable {
-	private Socket clientSocket;
-	private String directory;
+		// Create ServerSocket
+		ServerSocket serverSocket = new ServerSocket(port);
+		System.out.println("Server started on port " + port);
 
-	public ClientHandler(Socket clientSocket, String directory) {
-		this.clientSocket = clientSocket;
-		this.directory = directory;
-	}
+		// Listen for client connections
+		while (true) {
+			// Accept client connection
+			Socket socket = serverSocket.accept();
+			System.out.println("Accepted connection from " + socket.getInetAddress());
 
-	@Override
-	public void run() {
-		try (InputStream in = clientSocket.getInputStream();
-			 OutputStream out = clientSocket.getOutputStream()) {
+			// Open streams for client request and response
+			InputStream is = socket.getInputStream();
+			OutputStream os = socket.getOutputStream();
 
-			// Read the entire request including headers
-			String request = readFullRequest(in);
-			if (request == null || request.isEmpty()) {
-				sendError(out, 400, "Bad Request");
-				return;
+			// Read the input data, searching for the end of the headers (double CRLF)
+			StringBuilder headersBuilder = new StringBuilder();
+			int prevByte = -1;
+			int currByte = -1;
+			boolean foundDoubleCRLF = false;
+
+			while ((currByte = is.read()) != -1) {
+				headersBuilder.append((char) currByte);
+
+				// Check if we have reached the double CRLF (13, 10, 13, 10)
+				if (prevByte == 13 && currByte == 10) {
+					if (headersBuilder.length() >= 4 &&
+							headersBuilder.charAt(headersBuilder.length() - 4) == 13 &&
+							headersBuilder.charAt(headersBuilder.length() - 3) == 10 &&
+							headersBuilder.charAt(headersBuilder.length() - 2) == 13 &&
+							headersBuilder.charAt(headersBuilder.length() - 1) == 10) {
+						foundDoubleCRLF = true;
+						break;
+					}
+				}
+				prevByte = currByte;
 			}
 
-			// Parse the request line
-			String[] requestLines = request.split("\r\n");
-			String requestLine = requestLines[0];
-			String[] requestParts = requestLine.split(" ");
-			if (requestParts.length != 3) {
-				sendError(out, 400, "Bad Request");
-				return;
+			// If we didn't find the double CRLF, it's an invalid request
+			if (!foundDoubleCRLF) {
+				sendErrorResponse(os, 400, "Bad Request");
+				socket.close();
+				continue;
 			}
 
-			String method = requestParts[0];
-			String path = requestParts[1];
-			String protocol = requestParts[2];
+			// Parse the headers
+			String head = headersBuilder.toString();
+			BufferedReader br = new BufferedReader(new StringReader(head));
 
-			if (!protocol.equals("HTTP/1.1")) {
-				sendError(out, 505, "HTTP Version Not Supported");
-				return;
+			// Read the first line (Request-Line)
+			String firstLine = br.readLine();
+			if (firstLine == null || firstLine.isEmpty()) {
+				sendErrorResponse(os, 400, "Bad Request");
+				socket.close();
+				continue;
 			}
 
+			String[] firstLineParts = firstLine.split(" ");
+			if (firstLineParts.length != 3) {
+				sendErrorResponse(os, 400, "Bad Request");
+				socket.close();
+				continue;
+			}
+
+			String method = firstLineParts[0];
+			String uri = firstLineParts[1];
+			String httpVersion = firstLineParts[2];
+
+			if (!httpVersion.equals("HTTP/1.1")) {
+				sendErrorResponse(os, 505, "HTTP Version Not Supported");
+				socket.close();
+				continue;
+			}
+
+			// Check if the URI is valid
+			if (uri.contains("..")) {
+				sendErrorResponse(os, 403, "Forbidden");
+				socket.close();
+				continue;
+			}
+
+			// Only support GET and HEAD methods
 			if (!method.equals("GET") && !method.equals("HEAD")) {
-				sendError(out, 405, "Method Not Allowed");
-				return;
+				sendErrorResponse(os, 501, "Not Implemented");
+				socket.close();
+				continue;
 			}
 
-			if (path.contains("..")) {
-				sendError(out, 403, "Forbidden");
-				return;
+			// Handle file request
+			File requestedFile = new File(directory + uri);
+			if (!requestedFile.exists()) {
+				sendErrorResponse(os, 404, "Not Found");
+				socket.close();
+				continue;
 			}
 
-			// Locate the file based on the directory and path
-			File file = new File(directory, path);
-			if (!file.exists()) {
-				sendError(out, 404, "Not Found");
-				return;
+			if (!requestedFile.canRead()) {
+				sendErrorResponse(os, 403, "Forbidden");
+				socket.close();
+				continue;
 			}
 
-			if (!file.canRead()) {
-				sendError(out, 403, "Forbidden");
-				return;
-			}
-
-			sendResponse(out, file, method.equals("GET"));
-
-		} catch (IOException e) {
-			e.printStackTrace();
-		} finally {
-			try {
-				clientSocket.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			// Send response
+			sendResponse(os, 200, "OK", requestedFile);
+			socket.close();
 		}
 	}
 
-	private String readFullRequest(InputStream in) throws IOException {
-		BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-		StringBuilder requestBuilder = new StringBuilder();
-		String line;
+	private static void sendErrorResponse(OutputStream os, int statusCode, String statusMessage) throws IOException {
+		PrintWriter pw = new PrintWriter(os);
+		pw.println("HTTP/1.1 " + statusCode + " " + statusMessage);
+		pw.println("Content-Type: text/plain");
+		pw.println("Content-Length: " + statusMessage.length());
+		pw.println(); // End of headers
+		pw.println(statusMessage);
+		pw.flush();
+	}
 
-		// Keep reading until we encounter a double CRLF (indicating the end of headers)
-		boolean lastLineWasEmpty = false;
-		while ((line = reader.readLine()) != null) {
-			if (line.isEmpty()) {
-				if (lastLineWasEmpty) { // Found the double CRLF
-					break;
-				} else {
-					lastLineWasEmpty = true;
-				}
-			} else {
-				lastLineWasEmpty = false;
-			}
-			requestBuilder.append(line).append("\r\n");
+	private static void sendResponse(OutputStream os, int statusCode, String statusMessage, File file) throws IOException {
+		PrintWriter pw = new PrintWriter(os);
+		pw.println("HTTP/1.1 " + statusCode + " " + statusMessage);
+		pw.println("Content-Type: " + judgeContentType(file.getName()));
+		pw.println("Content-Length: " + file.length());
+		pw.println();
+
+		FileInputStream fis = new FileInputStream(file);
+		BufferedInputStream bis = new BufferedInputStream(fis);
+		byte[] buffer = new byte[1024];
+		int bytesRead;
+		while ((bytesRead = bis.read(buffer)) != -1) {
+			os.write(buffer, 0, bytesRead);
 		}
-
-		return requestBuilder.toString();
+		os.flush();
 	}
 
-	private void sendError(OutputStream out, int statusCode, String statusMessage) throws IOException {
-		String response = "HTTP/1.1 " + statusCode + " " + statusMessage + "\r\n" +
-				"Content-Length: 0\r\n" +
-				"Connection: close\r\n" +
-				"\r\n";
-		out.write(response.getBytes());
-	}
-
-	private void sendResponse(OutputStream out, File file, boolean includeBody) throws IOException {
-		String contentType = getContentType(file);
-		long contentLength = file.length();
-
-		// Response headers
-		StringBuilder responseHeader = new StringBuilder();
-		responseHeader.append("HTTP/1.1 200 OK\r\n")
-				.append("Content-Type: ").append(contentType).append("\r\n")
-				.append("Content-Length: ").append(contentLength).append("\r\n")
-				.append("Server: ").append(Server.SERVER_NAME).append("\r\n")
-				.append("\r\n");
-
-		out.write(responseHeader.toString().getBytes());
-
-		// If GET request, include the body (the actual file content)
-		if (includeBody) {
-			try (FileInputStream fileIn = new FileInputStream(file)) {
-				byte[] buffer = new byte[1024];
-				int bytesRead;
-				while ((bytesRead = fileIn.read(buffer)) != -1) {
-					out.write(buffer, 0, bytesRead);
-				}
-			}
-		}
-	}
-
-	private String getContentType(File file) {
-		String fileName = file.getName();
-		if (fileName.endsWith(".html") || fileName.endsWith(".htm")) {
-			return "text/html";
-		} else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
+	private static String judgeContentType(String filepath) {
+		if (filepath.endsWith(".jpg") || filepath.endsWith(".jpeg")) {
 			return "image/jpeg";
-		} else if (fileName.endsWith(".txt")) {
+		} else if (filepath.endsWith(".txt")) {
 			return "text/plain";
+		} else if (filepath.endsWith(".html")) {
+			return "text/html";
 		} else {
 			return "application/octet-stream";
 		}
