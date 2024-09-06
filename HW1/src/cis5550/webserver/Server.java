@@ -151,14 +151,15 @@ public class Server {
 		pw.flush(); // Ensure headers are sent before body
 
 		// Send the file content
-		FileInputStream fis = new FileInputStream(file);
-		BufferedInputStream bis = new BufferedInputStream(fis);
-		byte[] buffer = new byte[1024];
-		int bytesRead;
-		while ((bytesRead = bis.read(buffer)) != -1) {
-			os.write(buffer, 0, bytesRead);
+		try (FileInputStream fis = new FileInputStream(file);
+			 BufferedInputStream bis = new BufferedInputStream(fis)) {
+			byte[] buffer = new byte[1024];
+			int bytesRead;
+			while ((bytesRead = bis.read(buffer)) != -1) {
+				os.write(buffer, 0, bytesRead);
+			}
+			os.flush(); // Ensure all file data is sent
 		}
-		os.flush(); // Ensure all file data is sent
 	}
 
 	private static String judgeContentType(String filepath) {
