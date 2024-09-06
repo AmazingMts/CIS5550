@@ -228,7 +228,7 @@ if (!(new String(r1.body)).equals("Well done is better than well said.\n"))
       testSucceeded();
     } catch (Exception e) { testFailed("An exception occurred: "+e, false); }
 
-    if (tests.contains("binary")) try { 
+    if (tests.contains("binary")) try {
       startTest("binary", "Request for a binary file", 5);
       Socket s = openSocket(8000);
       PrintWriter out = new PrintWriter(s.getOutputStream());
@@ -328,10 +328,10 @@ if (!(new String(r1.body)).equals("Well done is better than well said.\n"))
                   testsSucceeded.increment();
               }
               s.close();
-            } 
+            }
           } catch (Exception e) {
-            e.printStackTrace(); 
-            testsFailed.increment(); 
+            e.printStackTrace();
+            testsFailed.increment();
           }
         } };
         t[i].start();
@@ -355,7 +355,7 @@ if (!(new String(r1.body)).equals("Well done is better than well said.\n"))
       System.out.println("Looks like your solution passed all of the selected tests. Congratulations!");
     else
       System.out.println(numTestsFailed+" test(s) failed.");
-    if (stress2ran) 
+    if (stress2ran)
       System.out.println("\nYour throughput in 'stress2' was "+reqPerSec+" requests/sec, with "+numFail+" failues");
 
     closeOutputFile();
@@ -403,7 +403,7 @@ if (!(new String(r1.body)).equals("Well done is better than well said.\n"))
     	tests.add("multi");
       tests.add("stress");
       tests.add("stress2");
-    } 
+    }
 
   	for (int i=0; i<args.length; i++)
       if (!args[i].equals("all") && !args[i].equals("auto") && !args[i].equals("setup")  && !args[i].equals("cleanup"))

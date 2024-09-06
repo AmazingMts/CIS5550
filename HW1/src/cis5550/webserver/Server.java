@@ -3,25 +3,23 @@ package cis5550.webserver;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import cis5550.tools.Logger;
-
 public class Server {
     private static final Logger logger = Logger.getLogger(Server.class);
-    private static final ExecutorService executor = Executors.newFixedThreadPool(10);
 
     public static void main(String[] args) throws IOException {
-        // 检查参数数量
         if (args.length != 2) {
             logger.error("Invalid amount of parameters. Expected two, but got " + args.length);
             System.out.println("Written by Tianshi Miao");
             return;
         }
-        // 验证端口号和目录
+
         int port = Integer.parseInt(args[0]);
         String directory = args[1];
         File directoryFile = new File(directory);
@@ -30,100 +28,106 @@ public class Server {
             return;
         }
 
-        // 创建ServerSocket
-        ServerSocket ss = new ServerSocket(port);
+        ServerSocket serverSocket = new ServerSocket(port);
         logger.info("Server started on port " + port);
 
-        // 监听客户端连接
         while (true) {
-            Socket socket = null;
-            try {
-                // Accept client connection
-                socket = ss.accept();
-                logger.info("Accepted connection from " + socket.getInetAddress());
+            Socket socket = serverSocket.accept();
+            logger.info("Accepted connection from " + socket.getInetAddress());
 
-                // 提交到线程池
-                Socket finalSocket = socket;
-                executor.submit(() -> handleRequest(finalSocket, directory));
-            } catch (IOException e) {
-                logger.error("Error accepting connection: " + e.getMessage());
-            }
+            new Thread(() -> handleClient(socket, directory)).start();
         }
     }
 
-    private static void handleRequest(Socket socket, String directory) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-             OutputStream os = socket.getOutputStream()) {
+    private static void handleClient(Socket socket, String directory) {
+        try (InputStream is = socket.getInputStream(); OutputStream os = socket.getOutputStream()) {
+            boolean keepAlive = true; // 默认开启持久连接
 
-            String line;
-            StringBuilder requestHeaders = new StringBuilder();
+            while (keepAlive) {
+                BufferedReader br = new BufferedReader(new InputStreamReader(is));
+                String firstLine = br.readLine();
 
-            // 逐行读取请求头
-            while ((line = reader.readLine()) != null && !line.isEmpty()) {
-                requestHeaders.append(line).append("\r\n");
-            }
-            requestHeaders.append("\r\n"); // Add end of headers
-
-            String request = requestHeaders.toString();
-            logger.info("Received request: \n" + request);
-
-            // 解析请求行
-            String[] lines = request.split("\r\n");
-            if (lines.length > 0) {
-                String[] firstLineParts = lines[0].split(" ");
-                if (firstLineParts.length == 3) {
-                    String method = firstLineParts[0];
-                    String uri = firstLineParts[1];
-                    String httpVersion = firstLineParts[2];
-                    String requestFilepath = directory + uri;
-                    File requestFile = new File(requestFilepath);
-
-                    // Check method and version
-                    if (method.equals("POST") || method.equals("PUT")) {
-                        sendErrorResponse(os, 405, "POST or PUT are not allowed");
-                    } else if (!httpVersion.equals("HTTP/1.1")) {
-                        sendErrorResponse(os, 505, "HTTP Version Not Supported");
-                    } else if (uri.contains("..")) {
-                        sendErrorResponse(os, 403, "Forbidden");
-                    } else if (!method.equals("GET") && !method.equals("HEAD")) {
-                        sendErrorResponse(os, 501, "Not Implemented");
-                    } else if (!requestFile.exists()) {
-                        sendErrorResponse(os, 404, "File Not Found");
-                    } else if (!requestFile.canRead()) {
-                        sendErrorResponse(os, 403, "Forbidden");
-                    } else {
-                        // Send the actual HTTP response
-                        BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os));
-                        bw.write("HTTP/1.1 200 OK\r\n");
-                        bw.write("Content-Type: " + judgeContentType(requestFile.getAbsolutePath()) + "\r\n");
-                        bw.write("Server: TianshiServer\r\n");
-                        bw.write("Content-Length: " + requestFile.length() + "\r\n");
-                        bw.write("\r\n"); // End of headers
-                        bw.flush();
-
-                        FileInputStream fis = new FileInputStream(requestFile);
-                        BufferedInputStream bis = new BufferedInputStream(fis);
-                        byte[] fileTransfer = new byte[1024];
-                        int fileTransfernum;
-                        while ((fileTransfernum = bis.read(fileTransfer)) != -1) {
-                            os.write(fileTransfer, 0, fileTransfernum);
-                        }
-                        os.flush();
-                    }
-                } else {
+                if (firstLine == null || firstLine.isEmpty()) {
                     sendErrorResponse(os, 400, "Bad Request");
+                    return;
                 }
-            } else {
-                sendErrorResponse(os, 400, "Bad Request");
+
+                String[] requestParts = firstLine.split(" ");
+                if (requestParts.length != 3) {
+                    sendErrorResponse(os, 400, "Bad Request");
+                    return;
+                }
+
+                String method = requestParts[0];
+                String uri = requestParts[1];
+                String httpVersion = requestParts[2];
+
+                if (!httpVersion.equals("HTTP/1.1")) {
+                    sendErrorResponse(os, 505, "HTTP Version Not Supported");
+                    return;
+                }
+
+                // 读取请求头
+                String headerLine;
+                int contentLength = 0;
+                boolean connectionClose = false; // 标记是否为 Connection: close
+
+                while ((headerLine = br.readLine()) != null && !headerLine.isEmpty()) {
+                    logger.info("Header: " + headerLine);
+                    if (headerLine.toLowerCase().startsWith("content-length")) {
+                        contentLength = Integer.parseInt(headerLine.split(":")[1].trim());
+                    } else if (headerLine.toLowerCase().startsWith("connection")) {
+                        String connectionValue = headerLine.split(":")[1].trim().toLowerCase();
+                        if (connectionValue.equals("close")) {
+                            connectionClose = true;
+                        }
+                    }
+                }
+
+                // 判断是否要关闭连接
+                if (connectionClose) {
+                    keepAlive = false;
+                }
+
+                File requestFile = new File(directory + uri);
+                if (!requestFile.exists()) {
+                    sendErrorResponse(os, 404, "File Not Found");
+                    return;
+                }
+
+                if (!requestFile.canRead()) {
+                    sendErrorResponse(os, 403, "Forbidden");
+                    return;
+                }
+
+                // 发送响应
+                BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os));
+                bw.write("HTTP/1.1 200 OK\r\n");
+                bw.write("Content-Type:" + judgeContentType(requestFile.getAbsolutePath()) + "\r\n");
+                bw.write("Content-Length:" + requestFile.length() + "\r\n");
+                bw.write("Connection: " + (keepAlive ? "keep-alive" : "close") + "\r\n");
+                bw.write("\r\n");
+                bw.flush();
+
+                // 发送文件内容
+                try (FileInputStream fis = new FileInputStream(requestFile);
+                     BufferedInputStream bis = new BufferedInputStream(fis)) {
+                    byte[] buffer = new byte[1024];
+                    int bytesRead;
+                    while ((bytesRead = bis.read(buffer)) != -1) {
+                        os.write(buffer, 0, bytesRead);
+                    }
+                    os.flush();
+                }
+
+                if (!keepAlive) {
+                    logger.info("Closing connection as requested by client.");
+                    socket.close();
+                    break;
+                }
             }
         } catch (IOException e) {
-            logger.error("Error handling request: " + e.getMessage());
-        } finally {
-            try {
-                socket.close();
-            } catch (IOException e) {
-                logger.error("Error closing socket: " + e.getMessage());
-            }
+            logger.error("Error handling client connection: " + e.getMessage());
         }
     }
 
@@ -149,3 +153,4 @@ public class Server {
         }
     }
 }
+
