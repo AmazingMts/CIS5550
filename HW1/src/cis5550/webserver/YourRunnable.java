@@ -25,8 +25,13 @@ public class YourRunnable implements Runnable {
                 // 读取请求头
                 StringBuilder headerBuilder = new StringBuilder();
                 String line;
+                int contentLength = 0;
                 while ((line = reader.readLine()) != null && !line.isEmpty()) {
                     headerBuilder.append(line).append("\r\n");
+                    // 解析 Content-Length 头部
+                    if (line.startsWith("Content-Length:")) {
+                        contentLength = Integer.parseInt(line.split(":")[1].trim());
+                    }
                 }
                 headerBuilder.append("\r\n");
 
@@ -64,6 +69,12 @@ public class YourRunnable implements Runnable {
                 } else if (!requestFile.canRead()) {
                     sendErrorResponse(os, 403, "Forbidden", keepAlive);
                 } else {
+                    // 读取并丢弃消息体
+                    if (contentLength > 0) {
+                        char[] body = new char[contentLength];
+                        reader.read(body, 0, contentLength); // 读取并丢弃消息体
+                    }
+
                     // 发送文件内容
                     BufferedInputStream bis = new BufferedInputStream(new FileInputStream(requestFile));
                     BufferedOutputStream bos = new BufferedOutputStream(os);
@@ -104,6 +115,7 @@ public class YourRunnable implements Runnable {
             }
         }
     }
+
 
 
     private static void sendErrorResponse(OutputStream os, int statusCode, String message, boolean keepAlive) throws IOException {
