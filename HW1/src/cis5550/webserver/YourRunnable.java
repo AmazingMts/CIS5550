@@ -19,20 +19,20 @@ public class YourRunnable implements Runnable {
             OutputStream os = socket.getOutputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(is));
             BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os));
-            boolean keepAlive = true;
+            boolean keepAlive = true; // 默认情况下保持连接
 
             while (keepAlive) {
-                // Read headers
-                String line;
+                // 读取请求头
                 StringBuilder headerBuilder = new StringBuilder();
+                String line;
                 while ((line = reader.readLine()) != null && !line.isEmpty()) {
                     headerBuilder.append(line).append("\r\n");
                 }
                 headerBuilder.append("\r\n");
 
-                // Check if the client has closed the connection
+                // 检查客户端是否关闭了连接
                 if (line == null) {
-                    // Client has closed the connection
+                    // 客户端已关闭连接
                     break;
                 }
 
@@ -41,7 +41,7 @@ public class YourRunnable implements Runnable {
                 String[] firstLineParts = lines[0].split(" ");
                 if (firstLineParts.length != 3) {
                     sendErrorResponse(os, 400, "Bad Request", keepAlive);
-                    break; // Invalid request, close the connection
+                    break; // 请求无效，关闭连接
                 }
 
                 String method = firstLineParts[0];
@@ -50,9 +50,9 @@ public class YourRunnable implements Runnable {
                 String requestFilepath = directory + uri;
                 File requestFile = new File(requestFilepath);
 
-                // Check for HTTP method and version
+                // 检查 HTTP 方法和版本
                 if (method.equals("POST") || method.equals("PUT")) {
-                    sendErrorResponse(os, 405, "POST or PUT are not allowed", keepAlive);
+                    sendErrorResponse(os, 405, "Method Not Allowed", keepAlive);
                 } else if (!httpVersion.equals("HTTP/1.1")) {
                     sendErrorResponse(os, 505, "HTTP Version Not Supported", keepAlive);
                 } else if (uri.contains("..")) {
@@ -64,7 +64,7 @@ public class YourRunnable implements Runnable {
                 } else if (!requestFile.canRead()) {
                     sendErrorResponse(os, 403, "Forbidden", keepAlive);
                 } else {
-                    // Send file content
+                    // 发送文件内容
                     BufferedInputStream bis = new BufferedInputStream(new FileInputStream(requestFile));
                     BufferedOutputStream bos = new BufferedOutputStream(os);
 
@@ -76,20 +76,25 @@ public class YourRunnable implements Runnable {
                     bw.flush();
 
                     byte[] fileTransfer = new byte[1024];
-                    int fileTransfernum;
-                    while ((fileTransfernum = bis.read(fileTransfer)) != -1) {
-                        bos.write(fileTransfer, 0, fileTransfernum);
+                    int fileTransferNum;
+                    while ((fileTransferNum = bis.read(fileTransfer)) != -1) {
+                        bos.write(fileTransfer, 0, fileTransferNum);
                     }
                     bos.flush();
+                    bis.close();  // 关闭文件流
                 }
 
-                // Check for connection header to determine if we should keep the connection alive
-                keepAlive = headers.contains("Connection: keep-alive");
+                // 检查 Connection: close 头部，如果存在则关闭连接
+                if (headers.contains("Connection: close")) {
+                    keepAlive = false;
+                }
+
+                // 默认情况下保持连接（HTTP/1.1 默认是持久连接）
             }
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            // Close the socket only after detecting client disconnection
+            // 确保在客户端断开后关闭套接字
             if (socket != null) {
                 try {
                     socket.close();
@@ -99,6 +104,7 @@ public class YourRunnable implements Runnable {
             }
         }
     }
+
 
     private static void sendErrorResponse(OutputStream os, int statusCode, String message, boolean keepAlive) throws IOException {
         try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os))) {
