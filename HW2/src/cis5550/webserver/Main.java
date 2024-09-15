@@ -1,33 +1,27 @@
 package cis5550.webserver;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import cis5550.webserver.Server;
 
 public class Main {
     public static void main(String[] args) {
-        Server.port(8080);
+        // 设置服务器端口和静态文件目录
+        Server.port(10000);
+        Server.staticFiles.location("/path/to/static/files");
 
-        Server.post("/gettestfile", (req, res) -> {
-            File file = new File("/Users/mts/CIS5550/HW2/src/test.html");
-            if (file.exists() && !file.isDirectory()) {
-                try {
-                    String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
-                    res.body(content);
-                    return res.getBody();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    return "Error reading file.";
-                }
-            } else {
-                return "File not found.";
-            }
+        // 配置GET路由
+        Server.get("/test", (req, res) -> {
+            return req.url();
+        });
+        Server.post("/hello", (req, res) -> {
+            return "Request body: " + req.body();
         });
 
+        // 简单的POST路由，返回请求体内容
+        Server.post("/postbody", (req, res) -> {
+            return "Request body: " + req.body(); // 读取并返回请求体
+        });
 
-        ;
-
-        Server.getInstance(); // 启动服务器
+        // 启动服务器
+        Server.getInstance().run();
     }
 }

@@ -14,7 +14,7 @@ class RequestImpl implements Request {
   Map<String,String> headers;
   Map<String,String> queryParams;
   Map<String,String> params;
-  byte bodyRaw[];
+  byte bodyRaw[]="yourBodyHere".getBytes();
   Server server;
 
   RequestImpl(String methodArg, String urlArg, String protocolArg, Map<String,String> headersArg, Map<String,String> queryParamsArg, Map<String,String> paramsArg, InetSocketAddress remoteAddrArg, byte bodyRawArg[], Server serverArg) {

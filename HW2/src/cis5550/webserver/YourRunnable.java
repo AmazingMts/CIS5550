@@ -25,7 +25,6 @@ public class YourRunnable implements Runnable {
             InputStream is = socket.getInputStream();
             OutputStream os = socket.getOutputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-            BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os));
             boolean keepAlive = true;
 
             while (keepAlive) {
@@ -40,10 +39,6 @@ public class YourRunnable implements Runnable {
                 }
                 headerBuilder.append("\r\n");
 
-                if (line == null) {
-                    break;
-                }
-
                 String headers = headerBuilder.toString();
                 String[] lines = headers.split("\r\n");
                 String[] firstLineParts = lines[0].split(" ");
@@ -52,17 +47,51 @@ public class YourRunnable implements Runnable {
                     break;
                 }
 
+//                byte[] bodyBytes = new byte[contentLength];
+//                int bytesRead = 0;
+//                int totalBytesRead = 0;
+//
+//                while (totalBytesRead < contentLength) {
+//                    bytesRead = is.read(bodyBytes, totalBytesRead, contentLength - totalBytesRead);
+//                    totalBytesRead += bytesRead;
+//                }
+                StringBuilder bodyBuilder = new StringBuilder();
+                if (contentLength > 0) {
+                    char[] bodyBuffer = new char[contentLength];
+                    int bytesRead = reader.read(bodyBuffer, 0, contentLength);
+                    if (bytesRead != contentLength) {
+                        sendErrorResponse(os, 400, "Bad Request", keepAlive);
+                        break;
+                    }
+                    bodyBuilder.append(bodyBuffer, 0, bytesRead);
+                }
+
+                String requestBody = bodyBuilder.toString();
+                byte[] bodyBytes=requestBody.getBytes();
+
                 String method = firstLineParts[0];
                 String url = firstLineParts[1];
                 String httpVersion = firstLineParts[2];
                 String requestFilepath = directory + url;
                 File requestFile = new File(requestFilepath);
-                //exam the httpversion
+
+                // Check HTTP version
                 if (!httpVersion.equals("HTTP/1.1")) {
                     sendErrorResponse(os, 505, "HTTP Version Not Supported", keepAlive);
                     continue;
                 }
-                //examine the method
+//                if (contentLength > 0) {
+//                    body = new byte[contentLength];
+//                    int bytesRead = 0;
+//                    while (bytesRead < contentLength) {
+//                        int result = is.read(body, bytesRead, contentLength - bytesRead);
+//                        if (result == -1) {
+//                            throw new IOException("Premature end of stream");
+//                        }
+//                        bytesRead += result;
+//                    }
+//                }
+                // Handle dynamic routes
                 Route route = null;
                 switch (method) {
                     case "GET":
@@ -75,75 +104,35 @@ public class YourRunnable implements Runnable {
                         route = Server.putRoutes.get(url);
                         break;
                     default:
-                        sendErrorResponse(os, 501, "Not Implement", keepAlive);
+                        sendErrorResponse(os, 501, "Not Implemented", keepAlive);
                         continue;
                 }
+
                 if (route != null) {
                     try {
-                        // 创建请求和响应对象
-                        Request request = new RequestImpl(method, url, httpVersion, parseHeaders(headers), parseQueryParams(url), null, (InetSocketAddress) socket.getRemoteSocketAddress(), readRequestBody(is, contentLength), Server.getInstance());
+                        Request request = new RequestImpl(method, url, httpVersion, parseHeaders(headers), parseQueryParams(url), null, (InetSocketAddress) socket.getRemoteSocketAddress(), bodyBytes, Server.getInstance());
                         Response response = new ResponseImpl();
-
-                        Object result=route.handle(request, response);
-                        response.body(result.toString());
-
-                        sendResponse(socket.getOutputStream(), response);
-                        return;
+                        Object result = route.handle(request, response);
+                        response.body(result.toString());//1.不用纠结为什么是放在result.body了
+                        sendResponse(os, response);
+                        continue; // Skip static file check after handling dynamic content
                     } catch (Exception e) {
-                        throw new RuntimeException(e);
+                        e.printStackTrace(); // Log exception for debugging
+                        sendErrorResponse(os, 500, "Internal Server Error", keepAlive);
+                        continue;
                     }
                 }
-                // routes
-//                    Route route = null;
-//                    if (method.equals("GET")) {
-//                        route = Server.getRoutes.get(url);
-//                    } else if (method.equals("POST")) {
-//                        route = Server.postRoutes.get(url);
-//                    } else if (method.equals("PUT")) {
-//                        route = Server.putRoutes.get(url);
-//                    } else {
-//                        sendErrorResponse(os, 501, "Not Implemented", keepAlive);
-//                        continue;
-//                    }
-//                }
-//                if (route != null) {
-//                    route.handle(socket, directory);
-//                } else {
-//                    sendErrorResponse(os, 404, "Not Found", keepAlive);
-//                }
 
-//                    if(route!=null) {
-//                        route.handle(socket,directory);
-//                    }else {
-//                        sendErrorResponse(os, 400, "Bad Request", keepAlive);
-//                    }
-//                }else if(!httpVersion.equals("HTTP/1.1")) {
-//                    sendErrorResponse(os, 505, "HTTP Version Not Supported", keepAlive);
-//                }else{
-//                    sendErrorResponse(os, 501, "Not Implemented", keepAlive);
-//                }
-//                if (headers.contains("Connection: close")) {
-//                    keepAlive = false;
-//                }
-
-
+                // Handle static files if no route matched
                 if (method.equals("POST") || method.equals("PUT")) {
                     sendErrorResponse(os, 405, "Method Not Allowed", keepAlive);
-                } else if (!httpVersion.equals("HTTP/1.1")) {
-                    sendErrorResponse(os, 505, "HTTP Version Not Supported", keepAlive);
                 } else if (url.contains("..")) {
                     sendErrorResponse(os, 403, "Forbidden", keepAlive);
-                } else if (!method.equals("GET") && !method.equals("HEAD")) {
-                    sendErrorResponse(os, 501, "Not Implemented", keepAlive);
                 } else if (!requestFile.exists()) {
                     sendErrorResponse(os, 404, "File Not Found", keepAlive);
                 } else if (!requestFile.canRead()) {
                     sendErrorResponse(os, 403, "Forbidden", keepAlive);
-                } else if (contentLength > 0) {
-                    char[] body = new char[contentLength];
-                    reader.read(body, 0, contentLength);
-                }
-                else {
+                } else {
                     // Serve static file
                     try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(requestFile))) {
                         byte[] fileContent = bis.readAllBytes();
@@ -153,41 +142,14 @@ public class YourRunnable implements Runnable {
                         response.status(200, "OK");
                         sendResponse(os, response);
                     } catch (Exception e) {
+                        e.printStackTrace(); // Log exception for debugging
                         sendErrorResponse(os, 500, "Internal Server Error", keepAlive);
                     }
                 }
             }
-//                else {
-//                    BufferedInputStream bis = new BufferedInputStream(new FileInputStream(requestFile));
-//                    BufferedOutputStream bos = new BufferedOutputStream(os);
-//                    bw.write("HTTP/1.1 200 OK\r\n");
-//                    bw.write("Content-Type: " + judgeContentType(requestFile.getAbsolutePath()) + "\r\n");
-//                    bw.write("Server: TianshiServer\r\n");
-//                    bw.write("Content-Length: " + requestFile.length() + "\r\n");
-//                    bw.write("\r\n");
-//                    bw.flush();
-//
-//                    byte[] fileTransfer = new byte[1024];
-//                    int fileTransferNum;
-//                    while ((fileTransferNum = bis.read(fileTransfer)) != -1) {
-//                        bos.write(fileTransfer, 0, fileTransferNum);
-//                    }
-//                    bos.flush();
-//                    bis.close();  // 关闭文件流
-//                    if (headers.contains("Connection: close")) {
-//                        keepAlive = false;
-//                    }
-//                }
-//            }
-            // 检查 Connection: close 头部，如果存在则关闭连接
-
-
-            // 默认情况下保持连接（HTTP/1.1 默认是持久连接）
-
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            // 确保在客户端断开后关闭套接字
             if (socket != null) {
                 try {
                     socket.close();
@@ -197,6 +159,23 @@ public class YourRunnable implements Runnable {
             }
         }
     }
+
+
+//    private byte[] readRequestBody(InputStream is, int contentLength) throws IOException {
+//        if (contentLength > 0) {
+//            String str = new byte[contentLength];
+//            int bytesRead = 0;
+//            while (bytesRead < contentLength) {
+//                int result = is.read(body, bytesRead, contentLength - bytesRead);
+//                if (result == -1) {
+//                    throw new IOException("Premature end of stream");
+//                }
+//                bytesRead += result;
+//            }
+//            return body;
+//        }
+//        return new byte[0];
+//    }
 
 
     private static void sendErrorResponse(OutputStream os, int statusCode, String message, boolean keepAlive) throws IOException {
@@ -255,23 +234,6 @@ public class YourRunnable implements Runnable {
         return queryParams;
     }
 
-    private byte[] readRequestBody(InputStream is, int contentLength) throws IOException {
-        if (contentLength > 0) {
-            byte[] body = new byte[contentLength];
-            int bytesRead = 0;
-            while (bytesRead < contentLength) {
-                int result = is.read(body, bytesRead, contentLength - bytesRead);
-                if (result == -1) {
-                    throw new IOException("Premature end of stream");
-                }
-                bytesRead += result;
-            }
-            return body;
-        }
-        return new byte[0];
-    }
-
-
     private void sendResponse(OutputStream os, Response response) throws IOException {
         try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os))) {
             if (response instanceof ResponseImpl) {
@@ -303,7 +265,6 @@ public class YourRunnable implements Runnable {
             }
         }
     }
-
 
 
 }

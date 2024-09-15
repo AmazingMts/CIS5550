@@ -1,11 +1,13 @@
 package cis5550.webserver;
 
+import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.OutputStream;
 
 public class ResponseImpl implements Response {
-    private byte[] body;
+    private byte[] body;  // 直接将字符串转换为字节数组;
     private boolean written = false;
     private boolean responseCommitted = false;
     private List<AbstractMap.SimpleEntry<String, String>> headers = new ArrayList<>();
@@ -15,6 +17,8 @@ public class ResponseImpl implements Response {
     boolean halted = false;
     int haltStatusCode;
     String haltReasonPhrase;
+    private OutputStream outputStream;
+
     @Override
     public void body(String body) {
         if (!written) {
@@ -52,12 +56,13 @@ public class ResponseImpl implements Response {
     }
 
     @Override
-    public void write(byte[] b) throws Exception {
+    public void write(byte[] b) throws IOException {
         if (halted) {
-            // If halted, write halt response instead of normal response
-            System.out.write(("HTTP/1.1 " + haltStatusCode + " " + haltReasonPhrase + "\r\n").getBytes());
-            System.out.write("Connection: close\r\n".getBytes());
-            System.out.write("\r\n".getBytes());
+            // 如果请求被停止，写出停止响应
+            outputStream.write(("HTTP/1.1 " + haltStatusCode + " " + haltReasonPhrase + "\r\n").getBytes());
+            outputStream.write("Connection: close\r\n".getBytes());
+            outputStream.write("\r\n".getBytes());
+            outputStream.flush();
             return;
         }
 
@@ -65,20 +70,28 @@ public class ResponseImpl implements Response {
             responseCommitted = true;
             written = true;
 
-            System.out.write(("HTTP/1.1 " + statusCode + " " + reasonPhrase + "\r\n").getBytes());
-
-            System.out.write(("Content-Type: " + contentType + "\r\n").getBytes());
-
-            System.out.write("Connection: close\r\n".getBytes());
+            // 写入头部信息
+            outputStream.write(("HTTP/1.1 " + statusCode + " " + reasonPhrase + "\r\n").getBytes());
+            outputStream.write(("Content-Type: " + contentType + "\r\n").getBytes());
+            // 计算 Content-Length
+            if (body != null) {
+                outputStream.write(("Content-Length: " + body.length + "\r\n").getBytes());
+            }
+            outputStream.write("Connection: close\r\n".getBytes());
 
             for (AbstractMap.SimpleEntry<String, String> header : headers) {
-                System.out.write((header.getKey() + ": " + header.getValue() + "\r\n").getBytes());
+                outputStream.write((header.getKey() + ": " + header.getValue() + "\r\n").getBytes());
             }
 
-            System.out.write("\r\n".getBytes());
+            outputStream.write("\r\n".getBytes());
         }
 
-        System.out.write(b);
+        // 写入实际的响应体
+        if (body != null) {
+            outputStream.write(body);
+        }
+        outputStream.write(b);
+        outputStream.flush();
     }
 
     @Override
