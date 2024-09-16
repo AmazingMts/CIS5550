@@ -3,6 +3,7 @@ package cis5550.webserver;
 import cis5550.webserver.Server;
 
 import static cis5550.webserver.Server.get;
+import static cis5550.webserver.Server.put;
 
 public class Main {
     public static void main(String[] args) {
@@ -24,6 +25,13 @@ public class Main {
         });
         get("/write", (req,res) -> { res.header("X-Bar", "present"); res.write("Hello ".getBytes()); res.write("World!".getBytes()); return null; });
         // 启动服务器
+        Server.get("/pathpar/:val1/123/:val2", (req, res) -> {
+            String val1 = req.params().get("val1");
+            String val2 = req.params().get("val2");
+            res.body("Val1: [" + val1 + "] Val2: [" + val2 + "]");
+            return null;
+        });
+
         Server.getInstance().run();
-    }
+        }
 }

@@ -93,6 +93,7 @@ public class YourRunnable implements Runnable {
 //                }
                 // Handle dynamic routes
                 Route route = null;
+                Map<String, String> params = null;
                 switch (method) {
                     case "GET":
                         route = Server.getRoutes.get(url);
@@ -107,10 +108,28 @@ public class YourRunnable implements Runnable {
                         sendErrorResponse(os, 501, "Not Implemented", keepAlive);
                         continue;
                 }
-
+                if (route == null) {
+                    // 尝试路径参数匹配
+                    for (Map.Entry<String, Route> entry : Server.getRoutes.entrySet()) {
+                        params = matchPath(entry.getKey(), url);
+                        if (params != null) {
+                            route = entry.getValue();
+                            break;
+                        }
+                    }
+                    if (route == null) {
+                        for (Map.Entry<String, Route> entry : Server.putRoutes.entrySet()) {
+                            params = matchPath(entry.getKey(), url);
+                            if (params != null) {
+                                route = entry.getValue();
+                                break;
+                            }
+                        }
+                    }
+                }
                 if (route != null) {
                     try {
-                        Request request = new RequestImpl(method, url, httpVersion, parseHeaders(headers), parseQueryParams(url), null, (InetSocketAddress) socket.getRemoteSocketAddress(), bodyBytes, Server.getInstance());
+                        Request request = new RequestImpl(method, url, httpVersion, parseHeaders(headers), parseQueryParams(url), params, (InetSocketAddress) socket.getRemoteSocketAddress(), bodyBytes, Server.getInstance());
                         Response response = new ResponseImpl();
                         ((ResponseImpl) response).setOutputStream(os);
                         Object result = route.handle(request, response);
@@ -234,7 +253,24 @@ public class YourRunnable implements Runnable {
         }
         return queryParams;
     }
+    private Map<String, String> matchPath(String pathPattern, String url) {
+        String[] patternParts = pathPattern.split("/");
+        String[] urlParts = url.split("/");
 
+        if (patternParts.length != urlParts.length) {
+            return null;
+        }
+
+        Map<String, String> params = new HashMap<>();
+        for (int i = 0; i < patternParts.length; i++) {
+            if (patternParts[i].startsWith(":")) {
+                params.put(patternParts[i].substring(1), urlParts[i]);
+            } else if (!patternParts[i].equals(urlParts[i])) {
+                return null;
+            }
+        }
+        return params;
+    }
     private void sendResponse(OutputStream os, Response response) throws IOException {
         try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os))) {
             if (response instanceof ResponseImpl) {

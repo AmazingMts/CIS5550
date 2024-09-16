@@ -79,3 +79,4 @@ class RequestImpl implements Request {
   }
 
 }
+

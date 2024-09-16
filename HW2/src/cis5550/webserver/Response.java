@@ -2,6 +2,7 @@ package cis5550.webserver;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.Map;
 
 public interface Response {
 
