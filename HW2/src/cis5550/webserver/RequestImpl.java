@@ -66,11 +66,39 @@ class RequestImpl implements Request {
     return headers.keySet();
   }
   public String queryParams(String param) {
-    return queryParams.get(param);
+    // Return value from URL params or body params
+    String value = queryParams.get(param);
+    if (value == null && "application/x-www-form-urlencoded".equals(contentType())) {
+      String bodyStr = body();
+      String[] pairs = bodyStr.split("&");
+      for (String pair : pairs) {
+        String[] keyValue = pair.split("=");
+        if (keyValue.length == 2 && keyValue[0].equals(param)) {
+          value = keyValue[1];
+          break;
+        }
+      }
+    }
+    return value;
   }
+
   public Set<String> queryParams() {
-    return queryParams.keySet();
+    // Combine query parameters from URL and body
+    Map<String, String> combinedParams = new HashMap<>(queryParams);
+
+    // Parse body parameters if content type is "application/x-www-form-urlencoded"
+    if ("application/x-www-form-urlencoded".equals(contentType())) {
+      String bodyStr = body();
+      String[] pairs = bodyStr.split("&");
+      for (String pair : pairs) {
+        String[] keyValue = pair.split("=");
+        if (keyValue.length == 2) {
+          combinedParams.put(keyValue[0], keyValue[1]);
+        }
+      }
+    }return combinedParams.keySet();
   }
+
   public String params(String param) {
     return params.get(param);
   }

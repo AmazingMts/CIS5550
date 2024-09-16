@@ -92,6 +92,7 @@ public class YourRunnable implements Runnable {
 //                    }
 //                }
                 // Handle dynamic routes
+                Map<String, String> queryParams = parseQueryParams(url);
                 Route route = null;
                 Map<String, String> params = null;
                 switch (method) {
@@ -109,7 +110,7 @@ public class YourRunnable implements Runnable {
                         continue;
                 }
                 if (route == null) {
-                    // 尝试路径参数匹配
+                //match para
                     for (Map.Entry<String, Route> entry : Server.getRoutes.entrySet()) {
                         params = matchPath(entry.getKey(), url);
                         if (params != null) {
@@ -129,15 +130,15 @@ public class YourRunnable implements Runnable {
                 }
                 if (route != null) {
                     try {
-                        Request request = new RequestImpl(method, url, httpVersion, parseHeaders(headers), parseQueryParams(url), params, (InetSocketAddress) socket.getRemoteSocketAddress(), bodyBytes, Server.getInstance());
+                        Request request = new RequestImpl(method, url, httpVersion, parseHeaders(headers), queryParams, params, (InetSocketAddress) socket.getRemoteSocketAddress(), bodyBytes, Server.getInstance());
                         Response response = new ResponseImpl();
                         ((ResponseImpl) response).setOutputStream(os);
                         Object result = route.handle(request, response);
-                        response.body(result.toString());//1.不用纠结为什么是放在result.body了
+                        response.body(result.toString());//1.why always in result.body?
                         sendResponse(os, response);
                         continue; // Skip static file check after handling dynamic content
                     } catch (Exception e) {
-                        e.printStackTrace(); // Log exception for debugging
+                        e.printStackTrace();
                         sendErrorResponse(os, 500, "Internal Server Error", keepAlive);
                         continue;
                     }
