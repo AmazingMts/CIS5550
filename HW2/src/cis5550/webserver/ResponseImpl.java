@@ -70,19 +70,20 @@ public class ResponseImpl implements Response {
             responseCommitted = true;
             written = true;
 
-            // 写入头部信息
+            // 写入响应头部信息
             outputStream.write(("HTTP/1.1 " + statusCode + " " + reasonPhrase + "\r\n").getBytes());
             outputStream.write(("Content-Type: " + contentType + "\r\n").getBytes());
-            // 计算 Content-Length
-            if (body != null) {
-                outputStream.write(("Content-Length: " + body.length + "\r\n").getBytes());
-            }
-            outputStream.write("Connection: close\r\n".getBytes());
 
+            // 计算 Content-Length
+            int contentLength = (body != null ? body.length : 0) + b.length;
+            outputStream.write(("Content-Length: " + contentLength + "\r\n").getBytes());
+
+            // 添加其他头部信息
             for (AbstractMap.SimpleEntry<String, String> header : headers) {
                 outputStream.write((header.getKey() + ": " + header.getValue() + "\r\n").getBytes());
             }
 
+            outputStream.write("Connection: close\r\n".getBytes());
             outputStream.write("\r\n".getBytes());
         }
 
@@ -93,6 +94,7 @@ public class ResponseImpl implements Response {
         outputStream.write(b);
         outputStream.flush();
     }
+
 
     @Override
     public void redirect(String url, int responseCode) {
@@ -141,5 +143,8 @@ public class ResponseImpl implements Response {
     }
     public byte[] getBody() {
         return body;
+    }
+    public void setOutputStream(OutputStream os) {
+        this.outputStream = os;
     }
 }

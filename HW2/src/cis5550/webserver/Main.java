@@ -2,6 +2,8 @@ package cis5550.webserver;
 
 import cis5550.webserver.Server;
 
+import static cis5550.webserver.Server.get;
+
 public class Main {
     public static void main(String[] args) {
         // 设置服务器端口和静态文件目录
@@ -20,7 +22,7 @@ public class Main {
         Server.post("/postbody", (req, res) -> {
             return "Request body: " + req.body(); // 读取并返回请求体
         });
-
+        get("/write", (req,res) -> { res.header("X-Bar", "present"); res.write("Hello ".getBytes()); res.write("World!".getBytes()); return null; });
         // 启动服务器
         Server.getInstance().run();
     }

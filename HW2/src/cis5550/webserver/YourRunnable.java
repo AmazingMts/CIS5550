@@ -112,6 +112,7 @@ public class YourRunnable implements Runnable {
                     try {
                         Request request = new RequestImpl(method, url, httpVersion, parseHeaders(headers), parseQueryParams(url), null, (InetSocketAddress) socket.getRemoteSocketAddress(), bodyBytes, Server.getInstance());
                         Response response = new ResponseImpl();
+                        ((ResponseImpl) response).setOutputStream(os);
                         Object result = route.handle(request, response);
                         response.body(result.toString());//1.不用纠结为什么是放在result.body了
                         sendResponse(os, response);
