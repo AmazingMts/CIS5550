@@ -14,7 +14,7 @@ class RequestImpl implements Request {
   Map<String,String> headers;
   Map<String,String> queryParams;
   Map<String,String> params;
-  byte bodyRaw[]="yourBodyHere".getBytes();
+  byte bodyRaw[];
   Server server;
 
   RequestImpl(String methodArg, String urlArg, String protocolArg, Map<String,String> headersArg, Map<String,String> queryParamsArg, Map<String,String> paramsArg, InetSocketAddress remoteAddrArg, byte bodyRawArg[], Server serverArg) {
@@ -66,24 +66,27 @@ class RequestImpl implements Request {
     return headers.keySet();
   }
   public String queryParams(String param) {
-    // Return value from URL params or body params
     String value = queryParams.get(param);
     if (value == null && "application/x-www-form-urlencoded".equals(contentType())) {
       String bodyStr = body();
       String[] pairs = bodyStr.split("&");
       for (String pair : pairs) {
         String[] keyValue = pair.split("=");
-        if (keyValue.length == 2 && keyValue[0].equals(param)) {
-          value = keyValue[1];
-          break;
+        if (keyValue.length == 2) {
+          String key = java.net.URLDecoder.decode(keyValue[0], StandardCharsets.UTF_8);
+          String val = java.net.URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8);
+          if (key.equals(param)) {
+            value = val;
+            break;
+          }
         }
       }
     }
+
     return value;
   }
 
   public Set<String> queryParams() {
-    // Combine query parameters from URL and body
     Map<String, String> combinedParams = new HashMap<>(queryParams);
 
     // Parse body parameters if content type is "application/x-www-form-urlencoded"
@@ -93,10 +96,13 @@ class RequestImpl implements Request {
       for (String pair : pairs) {
         String[] keyValue = pair.split("=");
         if (keyValue.length == 2) {
-          combinedParams.put(keyValue[0], keyValue[1]);
+          String key = URLDecoder.decode(keyValue[0], StandardCharsets.UTF_8);
+          String val = URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8);
+          combinedParams.put(key, val);
         }
       }
-    }return combinedParams.keySet();
+    }
+    return combinedParams.keySet();
   }
 
   public String params(String param) {
