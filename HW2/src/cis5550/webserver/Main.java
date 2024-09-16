@@ -31,17 +31,14 @@ public class Main {
             res.body("Val1: [" + val1 + "] Val2: [" + val2 + "]");
             return null;
         });
-        get("/qparam", (req, res) -> {
-            // 从 URL 和请求体中提取参数
+        Server.getInstance().get("/qparam", (req, res) -> {
             String par1 = req.queryParams("par1");
             String par2 = req.queryParams("par2");
             String par3 = req.queryParams("par3");
             String par4 = req.queryParams("par4");
-
-            // 生成响应字符串
             String responseBody = par1 + " " + par2 + "," + par3 + "," + par4;
             res.body(responseBody);
-            return responseBody;
+            return null;
         });
 
     }
