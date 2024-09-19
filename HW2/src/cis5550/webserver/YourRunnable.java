@@ -31,10 +31,14 @@ public class YourRunnable implements Runnable {
                 StringBuilder headerBuilder = new StringBuilder();
                 String line;
                 int contentLength = 0;
+                String contentType = null;
                 while ((line = reader.readLine()) != null && !line.isEmpty()) {
                     headerBuilder.append(line).append("\r\n");
                     if (line.startsWith("Content-Length:")) {
                         contentLength = Integer.parseInt(line.split(":")[1].trim());
+                    }
+                    if(line.startsWith("Content-Type:")) {
+                        contentType = line.split(":")[1].trim();
                     }
                 }
                 headerBuilder.append("\r\n");
@@ -93,6 +97,10 @@ public class YourRunnable implements Runnable {
 //                }
                 // Handle dynamic routes
                 Map<String, String> queryParams = parseQueryParams(url);
+                if ("application/x-www-form-urlencoded".equalsIgnoreCase(contentType)) {
+                    Map<String, String> bodyParams = parseFormEncodedBody(requestBody);
+                    queryParams.putAll(bodyParams); // Merge query parameters from URL and body
+                }
                 Route route = null;
                 Map<String, String> params = null;
                 switch (method) {
@@ -197,7 +205,17 @@ public class YourRunnable implements Runnable {
 //        }
 //        return new byte[0];
 //    }
-
+    private Map<String, String> parseFormEncodedBody(String requestBody) {
+        Map<String, String> bodyParams = new HashMap<>();
+        String[] pairs = requestBody.split("&");
+        for (String pair : pairs) {
+            String[] keyValue = pair.split("=");
+            if (keyValue.length == 2) {
+                bodyParams.put(keyValue[0], keyValue[1]);
+            }
+        }
+        return bodyParams;
+    }
 
     private static void sendErrorResponse(OutputStream os, int statusCode, String message, boolean keepAlive) throws IOException {
         try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os))) {
