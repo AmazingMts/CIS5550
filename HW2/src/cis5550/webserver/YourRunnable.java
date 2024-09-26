@@ -27,29 +27,42 @@ public class YourRunnable implements Runnable {
             BufferedReader reader = new BufferedReader(new InputStreamReader(is));
             boolean keepAlive = true;
 
+
             while (keepAlive) {
                 StringBuilder headerBuilder = new StringBuilder();
+                Map<String, String> headersMap = new HashMap<>();
                 String line;
                 int contentLength = 0;
-                String contentType = null;
+                String firstLine = null;
+                if ((firstLine = reader.readLine()) != null && !firstLine.isEmpty()) {
+                    headerBuilder.append(firstLine).append("\r\n");
+                }
                 while ((line = reader.readLine()) != null && !line.isEmpty()) {
                     headerBuilder.append(line).append("\r\n");
+
+                    // 解析请求头并存储在 headersMap 中
+                    String[] headerParts = line.split(":");
+                    if (headerParts.length == 2) {
+                        String key = headerParts[0].trim();
+                        String value = headerParts[1].trim();
+                        headersMap.put(key, value); // 存储请求头
+                    }
+
+                    // 检查 Content-Length
                     if (line.startsWith("Content-Length:")) {
                         contentLength = Integer.parseInt(line.split(":")[1].trim());
-                    }
-                    if(line.startsWith("Content-Type:")) {
-                        contentType = line.split(":")[1].trim();
                     }
                 }
                 headerBuilder.append("\r\n");
 
                 String headers = headerBuilder.toString();
-                String[] lines = headers.split("\r\n");
-                String[] firstLineParts = lines[0].split(" ");
+
+                String[] firstLineParts = firstLine.split(" ");
                 if (firstLineParts.length != 3) {
                     sendErrorResponse(os, 400, "Bad Request", keepAlive);
                     break;
                 }
+
 
 //                byte[] bodyBytes = new byte[contentLength];
 //                int bytesRead = 0;
@@ -71,14 +84,15 @@ public class YourRunnable implements Runnable {
                 }
 
                 String requestBody = bodyBuilder.toString();
-                byte[] bodyBytes=requestBody.getBytes();
+                byte[] bodyBytes = requestBody.getBytes();
 
                 String method = firstLineParts[0];
                 String url = firstLineParts[1];
                 String httpVersion = firstLineParts[2];
                 String requestFilepath = directory + url;
                 File requestFile = new File(requestFilepath);
-
+                System.out.println(socket.getLocalPort());
+                boolean isHttps= socket.getLocalPort() == 8443||socket.getLocalPort() == 443;
                 // Check HTTP version
                 if (!httpVersion.equals("HTTP/1.1")) {
                     sendErrorResponse(os, 505, "HTTP Version Not Supported", keepAlive);
@@ -95,30 +109,29 @@ public class YourRunnable implements Runnable {
 //                        bytesRead += result;
 //                    }
 //                }
+
                 // Handle dynamic routes
                 Map<String, String> queryParams = parseQueryParams(url);
-                if ("application/x-www-form-urlencoded".equalsIgnoreCase(contentType)) {
-                    Map<String, String> bodyParams = parseFormEncodedBody(requestBody);
-                    queryParams.putAll(bodyParams); // Merge query parameters from URL and body
-                }
+
                 Route route = null;
                 Map<String, String> params = null;
                 switch (method) {
                     case "GET":
-                        route = Server.getRoutes.get(url);
+                        route = Server.getRoutes.get(url.split("\\?")[0]);
                         break;
                     case "POST":
-                        route = Server.postRoutes.get(url);
+                        route = Server.postRoutes.get(url.split("\\?")[0]);
                         break;
                     case "PUT":
-                        route = Server.putRoutes.get(url);
+                        route = Server.putRoutes.get(url.split("\\?")[0]);
                         break;
                     default:
                         sendErrorResponse(os, 501, "Not Implemented", keepAlive);
                         continue;
                 }
+
                 if (route == null) {
-                //match para
+                    //match para
                     for (Map.Entry<String, Route> entry : Server.getRoutes.entrySet()) {
                         params = matchPath(entry.getKey(), url);
                         if (params != null) {
@@ -136,15 +149,46 @@ public class YourRunnable implements Runnable {
                         }
                     }
                 }
+
                 if (route != null) {
                     try {
-                        Request request = new RequestImpl(method, url, httpVersion, parseHeaders(headers), queryParams, params, (InetSocketAddress) socket.getRemoteSocketAddress(), bodyBytes, Server.getInstance());
+
+                        Request request = new RequestImpl(method, url, httpVersion, headersMap, queryParams, params, (InetSocketAddress) socket.getRemoteSocketAddress(), bodyBytes, Server.getInstance());
+
                         Response response = new ResponseImpl();
+                        System.out.println("Query Params: " + request.body());
+//                        System.out.println("contentType: " + request.contentType());
+//                        System.out.println("contentLength: " + headersMap);
+//                        System.out.println("contentLength2: " + response.getHeaders());
+//                        System.out.println("HTTP Version: " + httpVersion);
+//                        System.out.println("Query Params: " + queryParams);
+//                        System.out.println("Params: " + params);
+//                        System.out.println("Body: " + new String(bodyBytes));
+//                        Session session = YourRunnable.session(request, response,isHttps);
                         ((ResponseImpl) response).setOutputStream(os);
                         Object result = route.handle(request, response);
                         response.body(result.toString());//1.why always in result.body?
                         sendResponse(os, response);
-                        continue; // Skip static file check after handling dynamic content
+//                        System.out.println("Status Code: " + response.getStatusCode());
+//                        System.out.println("Status Message: " + response.getStatusMessage());
+//
+//                        // 打印响应头信息
+//                        System.out.println("Headers:");
+//                        for (AbstractMap.SimpleEntry<String, String> header : response.getHeaders()) {
+//                            System.out.println(header.getKey() + ": " + header.getValue());
+//                        }
+//
+//                        // 打印内容类型
+//                        System.out.println("Content Type: " + response.getContentType());
+//
+//                        // 打印响应正文（以字节数组形式打印）
+//                        byte[] bodyBytes2 = response.getBody();
+//                        if (bodyBytes2 != null) {
+//                            System.out.println("Body (as bytes): " + new String(bodyBytes2)); // 转换为字符串打印
+//                        } else {
+//                            System.out.println("Body is null");
+//                        }
+                        continue;
                     } catch (Exception e) {
                         e.printStackTrace();
                         sendErrorResponse(os, 500, "Internal Server Error", keepAlive);
@@ -205,17 +249,7 @@ public class YourRunnable implements Runnable {
 //        }
 //        return new byte[0];
 //    }
-    private Map<String, String> parseFormEncodedBody(String requestBody) {
-        Map<String, String> bodyParams = new HashMap<>();
-        String[] pairs = requestBody.split("&");
-        for (String pair : pairs) {
-            String[] keyValue = pair.split("=");
-            if (keyValue.length == 2) {
-                bodyParams.put(keyValue[0], keyValue[1]);
-            }
-        }
-        return bodyParams;
-    }
+
 
     private static void sendErrorResponse(OutputStream os, int statusCode, String message, boolean keepAlive) throws IOException {
         try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os))) {

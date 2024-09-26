@@ -170,6 +170,7 @@ public class HW2TestClient extends GenericTest {
       String val1 = randomAlphaNum(5,5), val2 = randomAlphaNum(5,5), val3 = randomAlphaNum(5,5), val4 = randomAlphaNum(5,5);
       out.print("GET /qparam?par1="+val1+"+X&par2=%22"+val2+"%22 HTTP/1.1\r\nHost: localhost:8000\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 21\r\n\r\npar3="+val3+"&par4="+val4);
       out.flush();
+
       Response r = readAndCheckResponse(s, "response");
       String expectedResponse = val1+" X,\""+val2+"\","+val3+","+val4;
       if (r.statusCode != 200)

@@ -140,13 +140,13 @@ public class YourRunnable implements Runnable {
                 Map<String, String> params = null;
                 switch (method) {
                     case "GET":
-                        route = Server.getRoutes.get(url);
+                        route = Server.getRoutes.get(url.split("\\?")[0]);
                         break;
                     case "POST":
-                        route = Server.postRoutes.get(url);
+                        route = Server.postRoutes.get(url.split("\\?")[0]);
                         break;
                     case "PUT":
-                        route = Server.putRoutes.get(url);
+                        route = Server.putRoutes.get(url.split("\\?")[0]);
                         break;
                     default:
                         sendErrorResponse(os, 501, "Not Implemented", keepAlive);
@@ -177,12 +177,15 @@ public class YourRunnable implements Runnable {
 
                         Request request = new RequestImpl(method, url, httpVersion, headersMap, queryParams, params, (InetSocketAddress) socket.getRemoteSocketAddress(), bodyBytes, Server.getInstance());
                         Response response = new ResponseImpl();
-//                        System.out.println("Method: " + method);
+                        System.out.println("contentType: " + request.contentType());
+                        System.out.println("contentType: " + request.headers());
+                        System.out.println("contentLength: " + headers);
 //                        System.out.println("URL: " + url);
 //                        System.out.println("HTTP Version: " + httpVersion);
 //                        System.out.println("Query Params: " + queryParams);
 //                        System.out.println("Params: " + params);
 //                        System.out.println("Body: " + new String(bodyBytes));
+
                         Session session = YourRunnable.session(request, response,isHttps);
                         ((ResponseImpl) response).setOutputStream(os);
                         Object result = route.handle(request, response);
