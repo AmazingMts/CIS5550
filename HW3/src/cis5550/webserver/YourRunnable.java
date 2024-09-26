@@ -177,15 +177,13 @@ public class YourRunnable implements Runnable {
 
                         Request request = new RequestImpl(method, url, httpVersion, headersMap, queryParams, params, (InetSocketAddress) socket.getRemoteSocketAddress(), bodyBytes, Server.getInstance());
                         Response response = new ResponseImpl();
-                        System.out.println("contentType: " + request.contentType());
-                        System.out.println("contentType: " + request.headers());
-                        System.out.println("contentLength: " + headers);
+
 //                        System.out.println("URL: " + url);
 //                        System.out.println("HTTP Version: " + httpVersion);
 //                        System.out.println("Query Params: " + queryParams);
 //                        System.out.println("Params: " + params);
 //                        System.out.println("Body: " + new String(bodyBytes));
-
+                        System.out.println(request.session());
                         Session session = YourRunnable.session(request, response,isHttps);
                         ((ResponseImpl) response).setOutputStream(os);
                         Object result = route.handle(request, response);
