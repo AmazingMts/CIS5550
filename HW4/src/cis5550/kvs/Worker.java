@@ -111,29 +111,27 @@ public class Worker {
         pw.println(pingRequest);
         pw.flush();
     }
-    private static String readfromFile(File file) throws IOException {
+    private static synchronized String readfromFile(File file) throws IOException {
         if (!file.exists()) {
             file.createNewFile();
         }
-        Scanner scanner = new Scanner(file);
-        String workerId;
-        if(scanner.hasNextLine()) {
-            workerId = scanner.nextLine();
-            return workerId;
-        }
-        else {
-            workerId = generateRandomId();
-            try (FileWriter writer = new FileWriter(file)) {
-                writer.write(workerId);
+        try (Scanner scanner = new Scanner(file)) {
+            if (scanner.hasNextLine()) {
+                return scanner.nextLine();
+            } else {
+                String workerId = generateRandomId();
+                try (FileWriter writer = new FileWriter(file)) {
+                    writer.write(workerId);
+                }
+                return workerId;
             }
         }
-        scanner.close();
-        return workerId;
     }
 
 
+
     private static void putData(String tableName, String rowKey, String columnKey, byte[] data) {
-        dataStore.putIfAbsent(tableName, new HashMap<>());//获取该表，若不存在就新建一个
+        dataStore.putIfAbsent(tableName, new ConcurrentHashMap<>());//获取该表，若不存在就新建一个
         Map<String, Row> content=dataStore.get(tableName);//获取该表中的行
         content.putIfAbsent(rowKey, new Row(rowKey));//如果行不存在就创建一个新行
         Row row = content.get(rowKey);//获取该行

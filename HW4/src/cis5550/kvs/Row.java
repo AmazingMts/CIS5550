@@ -2,25 +2,25 @@ package cis5550.kvs;
 
 import java.util.*;
 import java.io.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Row implements Serializable {
 
   protected String key;
-  protected HashMap<String,byte[]> values;
+  protected ConcurrentHashMap<String, byte[]> values;
 
   public Row(String keyArg) {
     key = keyArg;
-    values = new HashMap<String,byte[]>();
+    values = new ConcurrentHashMap<>();
   }
 
   public synchronized String key() {
     return key;
   }
 
-  public synchronized Row clone() {
+  public Row clone() {
     Row theClone = new Row(key);
-    for (String s : values.keySet())
-      theClone.values.put(s, values.get(s));
+    theClone.values = new ConcurrentHashMap<>(this.values);  // 使用构造函数复制
     return theClone;
   }
 
@@ -28,15 +28,15 @@ public class Row implements Serializable {
     return values.keySet();
   }
 
-  public synchronized void put(String key, String value) {
+  public  void put(String key, String value) {
     values.put(key, value.getBytes());
   }
 
-  public synchronized void put(String key, byte[] value) {
+  public  void put(String key, byte[] value) {
     values.put(key, value);
   }
 
-  public synchronized String get(String key) {
+  public  String get(String key) {
     if (values.get(key) == null)
       return null;
     return new String(values.get(key));
@@ -136,7 +136,7 @@ public class Row implements Serializable {
     }
   }
 
-  public synchronized String toString() {
+  public String toString() {
     String s = key+" {";
     boolean isFirst = true;
     for (String k : values.keySet()) {
