@@ -6,12 +6,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.concurrent.ConcurrentHashMap;
+
 import cis5550.webserver.Server;
 
 import static cis5550.webserver.Server.*;
 
 public class Worker {
-    private static Map<String, Map<String, Row>> dataStore = new HashMap<>();
+    private static Map<String, Map<String, Row>> dataStore = new ConcurrentHashMap<>();
     public static void main(String[] args) throws IOException {
         if (args.length != 3) {
             System.out.println("bad request");
