@@ -8,10 +8,11 @@ public class Row implements Serializable {
 
   protected String key;
   protected ConcurrentHashMap<String, byte[]> values;
-
+  private Map<String, TreeMap<Integer, byte[]>> columns;
   public Row(String keyArg) {
     key = keyArg;
     values = new ConcurrentHashMap<>();
+    columns = new TreeMap<>();
   }
 
   public synchronized String key() {
@@ -32,14 +33,26 @@ public class Row implements Serializable {
     values.put(key, value.getBytes());
   }
 
-  public  void put(String key, byte[] value) {
-    values.put(key, value);
+  public void put(String column, byte[] data) {
+    TreeMap<Integer, byte[]> versions = columns.getOrDefault(column, new TreeMap<>());
+    int newVersion = versions.isEmpty() ? 1 : versions.lastKey() + 1;
+    versions.put(newVersion, data);
+    columns.put(column, versions);
   }
 
-  public  String get(String key) {
-    if (values.get(key) == null)
-      return null;
-    return new String(values.get(key));
+  public byte[] get(String column) {
+    TreeMap<Integer, byte[]> versions = columns.get(column);
+    return (versions != null && !versions.isEmpty()) ? versions.lastEntry().getValue() : null;
+  }
+  public byte[] getVersion(String column, int version) {
+    TreeMap<Integer, byte[]> versions = columns.get(column);
+    return (versions != null) ? versions.get(version) : null;
+  }
+
+  // 获取该列的最新版本号
+  public int getLatestVersion(String column) {
+    TreeMap<Integer, byte[]> versions = columns.get(column);
+    return (versions != null && !versions.isEmpty()) ? versions.lastKey() : 0;
   }
 
   public synchronized byte[] getBytes(String key) {

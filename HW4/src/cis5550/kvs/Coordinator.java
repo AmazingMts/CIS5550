@@ -48,6 +48,7 @@ public class Coordinator extends cis5550.generic.Coordinator {
                 res.status(400,"inValid request");
                 return "Missing ID or port number.";
             }
+
             WorkerInfo worker = workers.get(workerId);
             if(worker!=null ) {
                 worker.lastPing = Instant.now();

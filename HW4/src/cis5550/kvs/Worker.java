@@ -2,7 +2,6 @@ package cis5550.kvs;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
@@ -57,8 +56,14 @@ public class Worker {
                     Row row = table.get(rowKey);
 
                     // 检查 ifcolumn 列是否存在，并且值是否匹配 equalsValue
-                    String columnValue = row.get(ifcolumn);
-                    if (columnValue == null || !columnValue.equals(equalsValue)) {
+                    byte[] columnValueBytes = row.get(ifcolumn);
+                    if (columnValueBytes == null) {
+                        res.status(409, "Column name Not Found");
+                        return "FAIL";
+                    }
+                    String columnValueStr = new String(columnValueBytes, "UTF-8");
+
+                    if (columnValueStr == null || !columnValueStr.equals(equalsValue)) {
                         // 如果列不存在或值不匹配，返回 FAIL
                         res.status(409,"Column name Not Found");  // 保持 200 状态码
                         return "FAIL";
@@ -70,7 +75,9 @@ public class Worker {
                 }
             }
 
-            putData(tableName, rowKey, columnKey, data);
+            // 返回分配的版本号
+            int latestVersion =putData(tableName, rowKey, columnKey, data);
+            res.header("Version", String.valueOf(latestVersion));
 
             // 返回 OK 表示操作成功
             res.status(200,"successful");
@@ -80,16 +87,29 @@ public class Worker {
             String tableName = req.params("table");
             String rowKey = req.params("row");
             String columnKey = req.params("column");
-            String result=getdata(tableName,rowKey,columnKey);
+            String versionParam = req.queryParams("version");
+            String result;
+            if (versionParam != null) {
+                try {
+                    int version = Integer.parseInt(versionParam);  // 解析版本号
+                    result = getDataByVersion(tableName, rowKey, columnKey, version);  // 获取指定版本的数据
+                } catch (NumberFormatException e) {
+                    res.status(400, "Invalid version number");
+                    return "Invalid version parameter";
+                }
+            } else {
+                result = getdata(tableName, rowKey, columnKey);  // 获取最新版本的数据
+            }
+
+            // 打印结果并返回响应
             System.out.println(result);
-            if(result != null){
-                res.status(200,"successful");
+            if (result != null) {
+                res.status(200, "successful");
                 return result;
+            } else {
+                res.status(404, "not found");
+                return "Data not found";
             }
-            else{
-                res.status(404,"not found");
-            }
-            return null;
         });
     }
     private static String generateRandomId() {
@@ -130,14 +150,15 @@ public class Worker {
 
 
 
-    private static void putData(String tableName, String rowKey, String columnKey, byte[] data) {
+    private static int putData(String tableName, String rowKey, String columnKey, byte[] data) {
         dataStore.putIfAbsent(tableName, new ConcurrentHashMap<>());//获取该表，若不存在就新建一个
         Map<String, Row> content=dataStore.get(tableName);//获取该表中的行
         content.putIfAbsent(rowKey, new Row(rowKey));//如果行不存在就创建一个新行
         Row row = content.get(rowKey);//获取该行
         row.put(columnKey, data);//输入数据
+        return row.getLatestVersion(columnKey);
     }
-    private static String getdata(String tableName, String rowKey, String columnKey) {
+    private static String getdata(String tableName, String rowKey, String columnKey) throws UnsupportedEncodingException {
         if(!dataStore.containsKey(tableName)){
             return null;
         }
@@ -146,11 +167,37 @@ public class Worker {
             return  null;
         }
         Row row = content.get(rowKey);
-        String data=row.get(columnKey);
+        byte[] dataBytes = row.get(columnKey);  // 假设 row.get 返回 byte[] 类型
+        if (dataBytes == null) {
+            return null;
+        }
+
+        // 将 byte[] 转换为 String
+        String data = new String(dataBytes, "UTF-8");
         if(data == null){
             return null;
         }
         return data;
     }
+    private static String getDataByVersion(String tableName, String rowKey, String columnKey, int version) throws UnsupportedEncodingException {
+        if (!dataStore.containsKey(tableName)) {
+            return null;
+        }
+        Map<String, Row> content = dataStore.get(tableName);
+        if (!content.containsKey(rowKey)) {
+            return null;
+        }
+        Row row = content.get(rowKey);
+
+        // 假设 row.getVersion(columnKey, version) 返回的是指定版本的 byte[]
+        byte[] dataBytes = row.getVersion(columnKey, version);  // 根据版本号获取数据
+        if (dataBytes == null) {
+            return null;
+        }
+
+        // 将 byte[] 转换为 String，假设使用 UTF-8 编码
+        return new String(dataBytes, "UTF-8");
+    }
+
 
 }
