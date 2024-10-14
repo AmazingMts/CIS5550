@@ -167,13 +167,6 @@ public class Row implements Serializable {
       baos.write(key.getBytes());
       baos.write(' ');  // 空格分隔符
 
-      // 检查 columns 是否为空
-      if (columns.isEmpty()) {
-        System.out.println("No columns to write! 'columns' is empty.");
-      } else {
-        System.out.println("Columns content: " + columns.toString());
-      }
-
       // 写入每一列的键和值（获取每列的最新版本）
       for (String column : columns.keySet()) {
         TreeMap<Integer, byte[]> versions = columns.get(column);

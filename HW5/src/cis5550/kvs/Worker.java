@@ -2,11 +2,9 @@ package cis5550.kvs;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Random;
-import java.util.Scanner;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import cis5550.webserver.Server;
@@ -44,6 +42,8 @@ public class Worker {
                 }
             }
         }).start();
+
+
         put("/data/:table/:row/:column", (req, res) -> {
             String tableName = req.params("table");  // 获取表名
             String rowKey = req.params("row");       // 获取行名
@@ -102,7 +102,7 @@ public class Worker {
 
                         if (columnValueStr == null || !columnValueStr.equals(equalsValue)) {
                             // 如果列不存在或值不匹配，返回 FAIL
-                            res.status(409, "Column name Not Found");  // 保持 200 状态码
+                            res.status(200, "Column name Not Found");  // 保持 200 状态码
                             return "FAIL";
                         }
                     } else {
@@ -113,6 +113,7 @@ public class Worker {
                 }
 
                 // 返回分配的版本号
+
                 int latestVersion = putData(tableName, rowKey, columnKey, data);
                 res.header("Version", String.valueOf(latestVersion));
 
@@ -122,13 +123,43 @@ public class Worker {
             }
             return null;
         });
+
+        get("/data/:table/:row", (req, res) -> {
+            String tableName = req.params("table");
+            String rowKey = req.params("row");
+
+            // 获取行数据
+            Row row = getRow(directory, tableName, rowKey);
+            if (row != null) {
+                // 将行序列化为字节数组并返回
+                byte[] rowData = row.toByteArray();
+
+
+                // 将字节数组转换为可读的字符串
+                String readableData = new String(rowData, StandardCharsets.UTF_8);
+
+                // 返回可读的行数据
+                res.body(readableData);
+//                System.out.println(readableData);
+                res.status(200, "OK");
+                return readableData;
+            } else {
+                res.status(404, "Row not found");
+                return null;
+            }
+        });
+
+
+
+
+
+
+
         get("/data/:table/:row/:column",(req,res)->{
             String tableName = req.params("table");
             String rowKey = req.params("row");
             String columnKey = req.params("column");
             String versionParam = req.queryParams("version");
-            String startRow=req.queryParams("startRow");
-            String endRowExclusive=req.queryParams("endRowExclusive");
             String result;
             if (versionParam != null) {
                 try {
@@ -141,7 +172,6 @@ public class Worker {
             } else {
                 result = getdata(directory,tableName, rowKey, columnKey);  // 获取最新版本的数据
             }
-
             // 打印结果并返回响应
             if (result != null) {
                 res.status(200, "successful");
@@ -200,6 +230,83 @@ public class Worker {
             res.body(responseBuilder.toString() + "\n");
             return null;
         });
+        get("/tables", (req, res) -> {
+            StringBuilder responseText = new StringBuilder();
+
+            // 遍历内存中的表并添加到响应
+            dataStore.keySet().forEach(tableName -> {
+                responseText.append(tableName).append("\n");
+            });
+
+            // 遍历持久化表并添加到响应
+            File storageDir = new File(directory);
+            if (storageDir.exists() && storageDir.isDirectory()) {
+                for (File tableDirectory : storageDir.listFiles()) {
+                    if (tableDirectory.isDirectory()) {
+                        responseText.append(tableDirectory.getName()).append("\n");
+                    }
+                }
+            }
+
+            // 设置响应头为 text/plain
+            res.type("text/plain");
+
+            // 返回表名列表
+            return responseText.toString();
+        });
+
+        get("/", (req, res) -> {
+            StringBuilder html = new StringBuilder("<html><body><table>");
+
+            // 遍历内存中的表并生成 HTML 表格内容
+            dataStore.keySet().forEach(tableName -> {
+                html.append("<tr><td>").append(tableName).append("</td></tr>");
+            });
+
+            // 遍历持久化表并生成 HTML 表格内容
+            File storageDir = new File(directory);
+            if (storageDir.exists() && storageDir.isDirectory()) {
+                for (File tableDirectory : storageDir.listFiles()) {
+                    if (tableDirectory.isDirectory()) {
+                        html.append("<tr><td>").append(tableDirectory.getName()).append("</td></tr>");
+                    }
+                }
+            }
+
+            html.append("</table></body></html>");
+
+            // 设置响应头为 text/html
+            res.type("text/html");
+
+            // 返回生成的 HTML 页面
+            return html.toString();
+        });
+        get("/count/:table",(req,res)->{
+            String tableName = req.params("table");
+            File tableDirectory = new File(directory, tableName);
+            if (dataStore.containsKey(tableName)) {
+                int rowCount = dataStore.get(tableName).size();  // 获取内存表中的行数
+                res.status(200, "OK");
+                res.type("text/plain");
+                return String.valueOf(rowCount);  // 返回行数作为响应
+            }
+            if (tableDirectory.exists() && tableDirectory.isDirectory()) {
+                // 持久化表，读取表目录中的文件数作为行数
+                String[] rowFiles = tableDirectory.list();  // 获取该表的行文件
+                if (rowFiles != null) {
+                    int rowCount = rowFiles.length;
+                    res.status(200, "OK");
+                    res.type("text/plain");
+                    return String.valueOf(rowCount);  // 返回行数作为响应
+                }
+            }
+
+            // 如果表不存在，返回 404
+            res.status(404, "Table not found");
+            return "Table not found";
+        });
+
+
         put("/rename/:table", (req, res) -> {
             String tableName = req.params("table");  // 当前表名 XXX
             String newTableName = req.body();  // 新的表名 YYY 从请求体中获取
@@ -210,15 +317,21 @@ public class Worker {
                 return "New table name not provided";
             }
 
-            // 检查表 XXX 是否存在
-            File tableDirectory = new File("/path/to/data", tableName);
-            if (!tableDirectory.exists() || !tableDirectory.isDirectory()) {
+            // 检查内存中的表
+            boolean inMemory = dataStore.containsKey(tableName);
+
+            // 检查磁盘上的表
+            File tableDirectory = new File(directory, tableName);
+            boolean onDisk = tableDirectory.exists() && tableDirectory.isDirectory();
+
+            // 如果内存和磁盘上都不存在表，则返回404错误
+            if (!inMemory && !onDisk) {
                 res.status(404, "Table not found");
                 return "Table not found";
             }
 
-            // 检查表 YYY 是否已经存在
-            File newTableDirectory = new File("/path/to/data", newTableName);
+            // 检查新表名是否已存在于磁盘
+            File newTableDirectory = new File(directory, newTableName);
             if (newTableDirectory.exists()) {
                 res.status(409, "Target table already exists");
                 return "Target table already exists";
@@ -230,42 +343,53 @@ public class Worker {
                 return "Persistent table names must start with 'pt-'";
             }
 
-            // 执行重命名操作：重命名磁盘上的表目录
-            boolean success = tableDirectory.renameTo(newTableDirectory);
-            if (!success) {
-                res.status(500, "Failed to rename table");
-                return "Failed to rename table";
-            }
-
-            // 如果你有一个内存存储（如 dataStore），也要更新内存中的表名
-            if (dataStore.containsKey(tableName)) {
+            // 先重命名内存中的表
+            if (inMemory) {
                 Map<String, Row> rows = dataStore.remove(tableName);  // 从旧表名中移除
                 dataStore.put(newTableName, rows);  // 使用新表名插入
+            }
+
+            // 然后重命名磁盘上的表（如果存在）
+            if (onDisk) {
+                boolean success = tableDirectory.renameTo(newTableDirectory);
+                if (!success) {
+                    res.status(500, "Failed to rename table on disk");
+                    return "Failed to rename table on disk";
+                }
             }
 
             // 返回成功响应
             res.status(200, "OK");
             return "OK";
         });
+        get("/check/:table", (req, res) -> {
+            String tableName = req.params("table");  // 获取表名
+
+            // 检查内存中的表是否存在
+            if (dataStore.containsKey(tableName)) {
+                res.status(200, "Table exists in memory");
+                return "Table " + tableName + " exists in memory.";
+            } else {
+                res.status(404, "Table not found in memory");
+                return "Table " + tableName + " not found in memory.";
+            }
+        });
+
+
+
         put("/delete/:table", (req, res) -> {
             String tableName = req.params("table");  // 获取表名 XXX
-            System.out.println("Received request to delete table: " + tableName);
+
 
             // 检查表目录是否存在（用于持久化表）
             File tableDirectory = new File(directory, tableName);
-            System.out.println("Checking if directory exists for table: " + tableDirectory.getAbsolutePath());
+
 
             // 检查内存中的表是否存在（如果有内存存储结构）
             boolean inMemory = dataStore.containsKey(tableName);
-            if (inMemory) {
-                System.out.println("Table " + tableName + " found in memory.");
-            } else {
-                System.out.println("Table " + tableName + " not found in memory.");
-            }
 
             // 检查表是否存在（内存表或持久化表）
             if (!inMemory && (!tableDirectory.exists() || !tableDirectory.isDirectory())) {
-                System.out.println("Table " + tableName + " not found either in memory or as a directory.");
                 res.status(404, "Table not found");
                 return "Table not found";
             }
@@ -273,18 +397,14 @@ public class Worker {
             // 删除内存中的表（如果存在内存表）
             if (inMemory) {
                 dataStore.remove(tableName);  // 从内存中删除表
-                System.out.println("Deleted table " + tableName + " from memory.");
             }
 
             // 删除持久化表目录及其文件（如果是持久化表）
             if (tableDirectory.exists() && tableDirectory.isDirectory()) {
-                System.out.println("Deleting persistent table from directory: " + tableDirectory.getAbsolutePath());
                 deleteDirectory(tableDirectory);  // 删除磁盘上的表目录及所有文件
-                System.out.println("Deleted persistent table: " + tableDirectory.getAbsolutePath());
             }
 
             // 返回成功响应
-            System.out.println("Table " + tableName + " deleted successfully.");
             res.status(200, "OK");
             return "OK";
         });
@@ -359,11 +479,11 @@ public class Worker {
                 return null;
             }
 
-            // 将 byte[] 转换为 String 返回
             return new String(dataBytes, "UTF-8");
-        }else {
+        }
+        else {
             if (!dataStore.containsKey(tableName)) {
-                System.out.println("我的问题");
+                System.out.println("到判断dataStore为空了");
                 return null;
             }
             Map<String, Row> content = dataStore.get(tableName);
@@ -418,6 +538,33 @@ public class Worker {
         // 删除空目录
         directory.delete();
     }
+    private static Row getRow(String directory, String tableName, String rowKey) throws Exception {
+        // 首先检查是否在内存中
+        if (dataStore.containsKey(tableName)) {
+            Map<String, Row> table = dataStore.get(tableName);
+            if (table.containsKey(rowKey)) {
+                return table.get(rowKey);  // 返回内存中的 Row 对象
+            }
+        }
 
+
+        File tableDirectory = new File(directory, tableName);
+        if (!tableDirectory.exists() || !tableDirectory.isDirectory()) {
+            return null; // 如果表目录不存在，返回 null
+        }
+
+        // 编码行键
+        String encodedKey = KeyEncoder.encode(rowKey);
+        File rowFile = new File(tableDirectory, encodedKey);
+        if (!rowFile.exists()) {
+            return null; // 如果行文件不存在，返回 null
+        }
+
+        // 从磁盘读取行数据
+        byte[] rowData = Files.readAllBytes(rowFile.toPath());
+
+        // 反序列化为 Row 对象
+        return Row.fromByteArray(rowData);
+    }
 
 }

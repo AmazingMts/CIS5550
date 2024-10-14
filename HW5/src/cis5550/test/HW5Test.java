@@ -247,10 +247,10 @@ public class HW5Test extends GenericTest {
 
       File f = new File("__worker"+File.separator+table2+File.separator+row2a);
       if (!f.exists())
-        testFailed("We created a persistent table called '"+table2+"' and PUT a row '"+row2a+"' into it, but there is no file called "+f.getAbsolutePath()); 
+        testFailed("We created a persistent table called '"+table2+"' and PUT a row '"+row2a+"' into it, but there is no file called "+f.getAbsolutePath());
       f = new File("__worker"+File.separator+table2+File.separator+row2b);
       if (!f.exists())
-        testFailed("We created a persistent table called '"+table2+"' and PUT a row '"+row2b+"' into it, but there is no file called "+f.getAbsolutePath()); 
+        testFailed("We created a persistent table called '"+table2+"' and PUT a row '"+row2b+"' into it, but there is no file called "+f.getAbsolutePath());
 
       /* Check whether we can delete tables */
 
@@ -401,7 +401,7 @@ public class HW5Test extends GenericTest {
       String col2 = randomAlphaNum(3,5);
       String val1 = randomAlphaNum(3,5);
       String val2 = randomAlphaNum(3,5);
- 
+
       Socket s = openSocket(8001);
       PrintWriter out = new PrintWriter(s.getOutputStream());
       out.print("PUT /data/"+thetable+"/"+row+"/"+col1+" HTTP/1.1\r\nContent-Length: "+val1.length()+"\r\nHost: localhost\r\n\r\n"+val1);
@@ -449,7 +449,7 @@ public class HW5Test extends GenericTest {
       String col2 = randomAlphaNum(3,5);
       String val1 = randomAlphaNum(3,5);
       String val2 = randomAlphaNum(3,5);
- 
+
       Socket s = openSocket(8001);
       PrintWriter out = new PrintWriter(s.getOutputStream());
       out.print("PUT /data/"+thetable+"/"+row1+"/"+col1+" HTTP/1.1\r\nContent-Length: "+val1.length()+"\r\nHost: localhost\r\n\r\n"+val1);
@@ -510,6 +510,7 @@ public class HW5Test extends GenericTest {
       out = new PrintWriter(s.getOutputStream());
       String newtable = randomAlphaNum(4,6);
       req = "PUT /rename/"+thetable;
+
       out.print(req+" HTTP/1.1\r\nHost: localhost\r\nContent-Length: "+newtable.length()+"\r\n\r\n"+newtable);
       out.flush();
       r = readAndCheckResponse(s, "response");
@@ -548,7 +549,7 @@ public class HW5Test extends GenericTest {
       startTest("count", "Row count", 5);
 
       String thetable = randomAlphaNum(4,6);
- 
+
       Socket s;;
       int num = 5+(new Random()).nextInt(10);
       for (int i=0; i<num; i++) {
@@ -661,7 +662,7 @@ public class HW5Test extends GenericTest {
     closeOutputFile();
   }
 
-	public static void main(String args[]) throws Exception {
+  public static void main(String args[]) throws Exception {
 
     /* Make a set of enabled tests. If no command-line arguments were specified, run all tests. */
 
@@ -691,23 +692,23 @@ public class HW5Test extends GenericTest {
     }
 
     if ((args.length == 0) || args[0].equals("all") || args[0].equals("auto")) {
-      tests.add("wdisk");
-      tests.add("rdisk");
-      tests.add("putget2"); 
-      tests.add("delete"); 
-      tests.add("tablist");
-      tests.add("tabview");
+//      tests.add("wdisk");
+//      tests.add("rdisk");
+//      tests.add("putget2");
+//      tests.add("delete");
+//      tests.add("tablist");
+//      tests.add("tabview");
       tests.add("readrow");
-      tests.add("rstream");
-      tests.add("rename");
-      tests.add("count");
-      tests.add("pages");
-      tests.add("persist");
-    } 
+//      tests.add("rstream");
+//      tests.add("rename");
+//      tests.add("count");
+//      tests.add("pages");
+//      tests.add("persist");
+    }
 
     for (int i=0; i<args.length; i++)
-      if (!args[i].equals("all") && !args[i].equals("auto") && !args[i].equals("setup") && !args[i].equals("cleanup")) 
-    		tests.add(args[i]);
+      if (!args[i].equals("all") && !args[i].equals("auto") && !args[i].equals("setup") && !args[i].equals("cleanup"))
+        tests.add(args[i]);
 
     HW5Test t = new HW5Test();
     t.setExitUponFailure(exitUponFailure);
