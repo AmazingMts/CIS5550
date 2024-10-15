@@ -692,18 +692,16 @@ public class HW5Test extends GenericTest {
     }
 
     if ((args.length == 0) || args[0].equals("all") || args[0].equals("auto")) {
-//      tests.add("wdisk");
-//      tests.add("rdisk");
-//      tests.add("putget2");
-//      tests.add("delete");
-//      tests.add("tablist");
+      tests.add("wdisk");
+      tests.add("rdisk");
+      tests.add("putget2");
+      tests.add("delete");
+      tests.add("tablist");
 //      tests.add("tabview");
       tests.add("readrow");
-//      tests.add("rstream");
-//      tests.add("rename");
-//      tests.add("count");
+      tests.add("rstream");
 //      tests.add("pages");
-//      tests.add("persist");
+      tests.add("persist");
     }
 
     for (int i=0; i<args.length; i++)

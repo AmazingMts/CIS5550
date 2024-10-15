@@ -8,7 +8,7 @@ public class Row implements Serializable {
 
   protected String key;
   protected ConcurrentHashMap<String, byte[]> values;
-  private Map<String, TreeMap<Integer, byte[]>> columns;
+  Map<String, TreeMap<Integer, byte[]>> columns;
   public Row(String keyArg) {
     key = keyArg;
     values = new ConcurrentHashMap<>();

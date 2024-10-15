@@ -133,8 +133,6 @@ public class Worker {
             if (row != null) {
                 // 将行序列化为字节数组并返回
                 byte[] rowData = row.toByteArray();
-
-
                 // 将字节数组转换为可读的字符串
                 String readableData = new String(rowData, StandardCharsets.UTF_8);
 
@@ -184,52 +182,69 @@ public class Worker {
         get("/data/:table", (req, res) -> {
             String tableName = req.params("table");
             String startRow = req.queryParams("startRow");
-            String endRowExclusive = req.queryParams("endRowExclusive");  // 可选的 endRowExclusive 参数
+            String endRowExclusive = req.queryParams("endRowExclusive");
 
-            // 构建表的文件夹路径
-            File tableDirectory = new File("/path/to/data", tableName);
-
-            // 检查表目录是否存在
-            if (!tableDirectory.exists() || !tableDirectory.isDirectory()) {
-                res.status(404, "Table not found");
-                return "Table not found";
-            }
-
-            // 获取所有行文件
-            File[] rowFiles = tableDirectory.listFiles();
-            if (rowFiles == null || rowFiles.length == 0) {
-                res.status(404, "No data found in table");
-                return "No data found";
-            }
-
-            // 使用 StringBuilder 构建响应
+            // 检查是否是持久表（pt-开头的表名为持久表）
+            boolean isPersistentTable = tableName.startsWith("pt-");
             StringBuilder responseBuilder = new StringBuilder();
-            for (File rowFile : rowFiles) {
-                // 获取行键并根据 startRow 和 endRowExclusive 进行筛选
-                String rowKey = KeyEncoder.decode(rowFile.getName());  // 解码行键
-                if (startRow != null && rowKey.compareTo(startRow) < 0) {
-                    continue;  // 跳过小于 startRow 的行
-                }
-                if (endRowExclusive != null && rowKey.compareTo(endRowExclusive) >= 0) {
-                    continue;  // 跳过大于等于 endRowExclusive 的行
-                }
+            boolean tableFound = false;
 
-                // 读取行文件数据
-                byte[] rowData = Files.readAllBytes(rowFile.toPath());
-                responseBuilder.append(new String(rowData, "UTF-8")).append("\n");  // 每行后加换行符
+            // 如果是持久表，从磁盘读取
+            if (isPersistentTable) {
+                File tableDirectory = new File(directory, tableName);
+                if (tableDirectory.exists() && tableDirectory.isDirectory()) {
+                    File[] rowFiles = tableDirectory.listFiles();
+                    if (rowFiles != null) {
+                        for (File rowFile : rowFiles) {
+                            String rowKey = KeyEncoder.decode(rowFile.getName());
+
+                            // 根据startRow和endRowExclusive进行筛选
+                            if (startRow != null && rowKey.compareTo(startRow) < 0) continue;
+                            if (endRowExclusive != null && rowKey.compareTo(endRowExclusive) >= 0) continue;
+
+                            // 读取并序列化行数据
+                            byte[] rowData = Files.readAllBytes(rowFile.toPath());
+                            Row row = Row.fromByteArray(rowData);
+                            responseBuilder.append(new String(row.toByteArray(), "UTF-8")).append("\n");
+                        }
+                        tableFound = true;
+                    }
+                }
+            } else {
+                // 如果不是持久表，从内存读取
+                if (dataStore.containsKey(tableName)) {
+                    Map<String, Row> table = dataStore.get(tableName);
+                    for (String rowKey : table.keySet()) {
+                        // 根据startRow和endRowExclusive进行筛选
+                        if (startRow != null && rowKey.compareTo(startRow) < 0) continue;
+                        if (endRowExclusive != null && rowKey.compareTo(endRowExclusive) >= 0) continue;
+
+                        // 获取行数据并序列化
+                        Row row = table.get(rowKey);
+                        responseBuilder.append(new String(row.toByteArray(), "UTF-8")).append("\n");
+                    }
+                    tableFound = true;
+                }
             }
 
-            // 如果没有符合条件的数据，返回 404
-            if (responseBuilder.length() == 0) {
-                res.status(404, "No matching rows found");
-                return "No matching rows found";
+            // 如果找到了表，返回数据
+            if (tableFound) {
+                if (responseBuilder.length() == 0) {
+                    res.status(404, "No matching rows found");
+                    return "No matching rows found";
+                }
+                res.status(200, "OK");
+                res.type("text/plain");
+                res.body(responseBuilder.toString() + "\n");
+                return null;
             }
 
-            // 返回流式数据
-            res.status(200, "OK");
-            res.body(responseBuilder.toString() + "\n");
-            return null;
+            // 如果未找到表，返回404
+            res.status(404, "Table not found");
+            return "Table not found";
         });
+
+
         get("/tables", (req, res) -> {
             StringBuilder responseText = new StringBuilder();
 
@@ -538,6 +553,14 @@ public class Worker {
         // 删除空目录
         directory.delete();
     }
+    private static Map<String, Row> getTable(String directory, String tableName) {
+        if (dataStore.containsKey(tableName)) {
+            Map<String, Row> table = dataStore.get(tableName);
+            return table;  // 返回表结构
+        }
+        return null;  // 如果表不存在，返回 null
+    }
+
     private static Row getRow(String directory, String tableName, String rowKey) throws Exception {
         // 首先检查是否在内存中
         if (dataStore.containsKey(tableName)) {
