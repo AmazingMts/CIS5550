@@ -697,10 +697,10 @@ public class HW5Test extends GenericTest {
       tests.add("putget2");
       tests.add("delete");
       tests.add("tablist");
-//      tests.add("tabview");
+      tests.add("tabview");
       tests.add("readrow");
       tests.add("rstream");
-//      tests.add("pages");
+      tests.add("pages");
       tests.add("persist");
     }
 

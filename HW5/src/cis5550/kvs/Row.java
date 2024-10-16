@@ -26,7 +26,9 @@ public class Row implements Serializable {
   }
 
   public synchronized Set<String> columns() {
-    return values.keySet();
+    Set<String> allColumns = new HashSet<>(values.keySet());  // 从 values 获取列
+    allColumns.addAll(columns.keySet());  // 从 columns 获取列
+    return allColumns;
   }
 
   public  void put(String key, String value) {

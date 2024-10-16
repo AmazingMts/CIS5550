@@ -42,6 +42,25 @@ public class Worker {
                 }
             }
         }).start();
+        get("/test/:table/:row/:column",(req,res)-> {
+            String tableName = req.params("table");
+            String rowName = req.params("row");
+            String columnName = req.params("column");
+            byte[] data = null;
+            if (dataStore.containsKey(tableName)) {
+                Map<String, Row> table = dataStore.get(tableName);
+                if (table.containsKey(rowName)) {
+                    Row row = table.get(rowName);
+                    data = row.get(columnName);
+                }
+            }
+            String data1 = new String(data, "UTF-8");
+            res.body(data1);  // 假设数据是字符串
+            res.status(200, "successful");
+            return res;
+        });
+
+
 
 
         put("/data/:table/:row/:column", (req, res) -> {
@@ -51,8 +70,11 @@ public class Worker {
             byte[] data = req.bodyAsBytes();         // 获取请求体中的数据（可能是二进制）
             String ifcolumn = req.queryParams("ifcolumn");
             String equalsValue = req.queryParams("equals");
+
             if (tableName.startsWith("pt-")) {
                 // 1. 检查或创建表目录
+                if(rowKey.length()>6){
+                }
                 File tableDirectory = new File(directory, tableName);
                 if (!tableDirectory.exists()) {
                     tableDirectory.mkdir();  // 创建存储表数据的目录
@@ -271,31 +293,144 @@ public class Worker {
         });
 
         get("/", (req, res) -> {
-            StringBuilder html = new StringBuilder("<html><body><table>");
-
-            // 遍历内存中的表并生成 HTML 表格内容
-            dataStore.keySet().forEach(tableName -> {
-                html.append("<tr><td>").append(tableName).append("</td></tr>");
-            });
-
-            // 遍历持久化表并生成 HTML 表格内容
-            File storageDir = new File(directory);
-            if (storageDir.exists() && storageDir.isDirectory()) {
-                for (File tableDirectory : storageDir.listFiles()) {
-                    if (tableDirectory.isDirectory()) {
-                        html.append("<tr><td>").append(tableDirectory.getName()).append("</td></tr>");
+            StringBuilder htmlResponse = new StringBuilder();
+            htmlResponse.append("<html><head><title>Tables</title></head><body>");
+            htmlResponse.append("<h1>Tables on the Worker</h1>");
+            htmlResponse.append("<table border='1'><tr><th>Table Name</th><th>Number of Keys</th></tr>");
+            File directoryPath = new File(directory);
+            File[] persistentTables = directoryPath.listFiles();
+            if (persistentTables != null) {
+                for (File file1 : persistentTables) {
+                    if (file1.isDirectory() && file1.getName().startsWith("pt-")) {
+                        String tableName = file1.getName();
+                        int numKeys = file1.list().length;  // 计算行的数量
+                        htmlResponse.append("<tr>")
+                                .append("<td><a href='/view/").append(tableName).append("'>").append(tableName).append("</a></td>")
+                                .append("<td>").append(numKeys).append("</td>")
+                                .append("</tr>");
                     }
                 }
             }
 
-            html.append("</table></body></html>");
+            // 处理临时表 (从内存读取)
+            for (String tableName : dataStore.keySet()) {
+                Map<String, Row> table = dataStore.get(tableName);
+                int numKeys = table.size();  // 计算行的数量
+                htmlResponse.append("<tr>")
+                        .append("<td><a href='/view/").append(tableName).append("'>").append(tableName).append("</a></td>")
+                        .append("<td>").append(numKeys).append("</td>")
+                        .append("</tr>");
+            }
 
-            // 设置响应头为 text/html
+            htmlResponse.append("</table>");
+            htmlResponse.append("</body></html>");
+
             res.type("text/html");
-
-            // 返回生成的 HTML 页面
-            return html.toString();
+            return htmlResponse.toString();
         });
+        get("/view/:table", (req, res) -> {
+            String tableName = req.params("table");
+            int start = req.queryParams("start") != null ? Integer.parseInt(req.queryParams("start")) : 0;
+            int end = start + 10;
+            List<String> rowKeys = new ArrayList<>();
+            Map<String, Row> table = null;
+
+            // 检查是否为持久表（以 pt- 开头）
+            if (tableName.startsWith("pt-")) {
+                File tableDir = new File(directory, tableName);
+                if (!tableDir.exists() || !tableDir.isDirectory()) {
+                    res.status(404, "Not Found");
+                    return "Table not found";
+                }
+                // 获取持久表中的所有行（文件名即为行键）
+                File[] rowFiles = tableDir.listFiles();
+                if (rowFiles != null) {
+                    for (File rowFile : rowFiles) {
+                        rowKeys.add(rowFile.getName());  // 文件名就是 rowKey
+                    }
+                }
+            } else {
+                // 如果是临时表，从内存中获取
+                if (!dataStore.containsKey(tableName)) {
+                    res.status(404, "Not Found");
+                    return "Table not found";
+                }
+                table = dataStore.get(tableName);
+                rowKeys.addAll(table.keySet());
+            }
+
+            // 对行键进行排序
+            Collections.sort(rowKeys);
+
+            // 确保分页时不越界
+            end = Math.min(end, rowKeys.size());
+            List<String> rowsToShow = rowKeys.subList(start, end);
+
+            // 收集所有列名
+            Set<String> allColumns = new TreeSet<>();  // 使用 TreeSet 让列名保持排序
+            for (String rowKey : rowsToShow) {
+                if (tableName.startsWith("pt-")) {
+                    // 从持久表文件系统中读取行数据
+                    File rowFile = new File(directory + "/" + tableName, rowKey);
+                    if (rowFile.exists()) {
+                        Row row = Row.fromByteArray(Files.readAllBytes(rowFile.toPath()));
+                        allColumns.addAll(row.columns());  // 获取列名
+                    }
+                } else if (table != null) {
+                    Row row = table.get(rowKey);
+                    allColumns.addAll(row.columns());
+                }
+            }
+
+            // 构建 HTML 响应
+            StringBuilder response = new StringBuilder();
+            response.append("<html><head><title>View Table: ").append(tableName).append("</title></head><body>");
+            response.append("<h1>Table: ").append(tableName).append("</h1>");
+            response.append("<table border='1'><tr><th>Row Key</th>");
+
+            // 添加列头
+            for (String col : allColumns) {
+                response.append("<th>").append(col).append("</th>");
+            }
+            response.append("</tr>");
+
+            // 添加行数据
+            for (String rowKey : rowsToShow) {
+                response.append("<tr><td>").append(rowKey).append("</td>");
+                if (tableName.startsWith("pt-")) {
+                    // 从持久表文件系统中读取行数据
+                    File rowFile = new File(directory + "/" + tableName, rowKey);
+                    if (rowFile.exists()) {
+                        Row row = Row.fromByteArray(Files.readAllBytes(rowFile.toPath()));
+                        for (String col : allColumns) {
+                            byte[] colValue = row.get(col);
+                            response.append("<td>").append(colValue != null ? new String(colValue, "UTF-8") : "").append("</td>");
+                        }
+                    }
+                } else if (table != null) {
+                    Row row = table.get(rowKey);
+                    for (String col : allColumns) {
+                        byte[] colValue = row.get(col);
+                        response.append("<td>").append(colValue != null ? new String(colValue, "UTF-8") : "").append("</td>");
+                    }
+                }
+                response.append("</tr>");
+            }
+
+            response.append("</table>");
+
+            // 如果有更多行，显示 "Next" 链接
+            if (end < rowKeys.size()) {
+                response.append("<a href='/view/").append(tableName).append("?start=").append(end).append("'>Next</a>");
+            }
+
+            response.append("</body></html>");
+            res.type("text/html");
+            return response.toString();
+        });
+
+
+
         get("/count/:table",(req,res)->{
             String tableName = req.params("table");
             File tableDirectory = new File(directory, tableName);
