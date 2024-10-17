@@ -25,6 +25,7 @@ public class Worker {
         int Port=Integer.parseInt(coordnet[1]);
         port(Integer.parseInt(PortNumber));
         File direct = new File(directory);
+
         if (!direct.exists()) {
             direct.mkdirs();
         }
@@ -35,6 +36,7 @@ public class Worker {
                     Thread.sleep(5000);
                     String workerId=readfromFile(file);
                     sendpingrequest(workerId,IP,PortNumber,Port);
+
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 } catch (IOException e) {
@@ -73,16 +75,26 @@ public class Worker {
 
             if (tableName.startsWith("pt-")) {
                 // 1. 检查或创建表目录
-                if(rowKey.length()>6){
-                }
                 File tableDirectory = new File(directory, tableName);
                 if (!tableDirectory.exists()) {
                     tableDirectory.mkdir();  // 创建存储表数据的目录
                 }
 
-                // 2. 对行键进行编码
-                String encodedKey = KeyEncoder.encode(rowKey);
-                File rowFile = new File(tableDirectory, encodedKey);
+                File rowFile;
+                if (rowKey.length() > 6) {
+                    // 使用前两个字符作为子目录名
+                    String subDirName = "__" + rowKey.substring(0, 2);
+                    File subDir = new File(tableDirectory, subDirName);
+                    if (!subDir.exists()) {
+                        subDir.mkdirs();  // 如果子目录不存在，创建子目录
+                    }
+                    // 将行文件存储在子目录中
+                    rowFile = new File(subDir, KeyEncoder.encode(rowKey));
+                } else {
+                    // 行键长度 <= 6，直接存储在表目录中
+                    rowFile = new File(tableDirectory, KeyEncoder.encode(rowKey));
+                }
+
                 Row row = null;
 
                 // 3. 检查文件是否存在
@@ -94,8 +106,10 @@ public class Worker {
                     // 文件不存在，创建新的 Row 对象
                     row = new Row(rowKey);
                 }
+
                 // 4. 更新或添加列数据
                 row.put(columnKey, data);  // 将请求体中的数据更新到指定列
+
                 // 5. 将更新后的行数据写回磁盘
                 try (FileOutputStream fos = new FileOutputStream(rowFile)) {
                     fos.write(row.toByteArray());  // 序列化行数据并写入文件（覆盖旧内容）
@@ -103,6 +117,7 @@ public class Worker {
                     e.printStackTrace();
                     res.status(500, "Error writing row file.");
                 }
+
                 // 6. 返回成功响应
                 res.status(200, "OK");
                 res.body("OK");
