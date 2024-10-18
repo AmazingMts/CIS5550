@@ -93,14 +93,18 @@ public class Worker {
                 try {
                     int version = Integer.parseInt(versionParam);  // 解析版本号
                     result = getDataByVersion(tableName, rowKey, columnKey, version);  // 获取指定版本的数据
+                    res.header("Version", String.valueOf(version));
                 } catch (NumberFormatException e) {
                     res.status(400, "Invalid version number");
                     return "Invalid version parameter";
                 }
             } else {
-                result = getdata(tableName, rowKey, columnKey);  // 获取最新版本的数据
+                result = getdata(tableName, rowKey, columnKey);
+                Map<String, Row> table = dataStore.get(tableName);
+                Row row = table.get(rowKey);
+                int latestVersion = row.getLatestVersion(columnKey);
+                res.header("Version", String.valueOf(latestVersion));
             }
-
             // 打印结果并返回响应
             System.out.println(result);
             if (result != null) {
