@@ -100,7 +100,7 @@ class Worker extends cis5550.generic.Worker {
             return "Task completed.";
         });
         post("/rdd/mapToPair", (request, response) -> {
-            File jarfile=new File("");
+            File jarfile=new File("/Users/mts/Desktop/HW6/tests/flame-collect.jar");
 
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
