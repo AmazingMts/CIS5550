@@ -37,12 +37,21 @@ public class FlameRDDImpl implements FlameRDD {
     @Override
     public FlameRDD flatMap(StringToIterable lambda) throws Exception {
         byte[] serializedLambda = Serializer.objectToByteArray(lambda);
-//        return (FlameRDD) ((FlameContextImpl) context).invokeOperation("/rdd/flatMap", serializedLambda, this.tableName);
-        FlameRDD resultRDD = (FlameRDD) ((FlameContextImpl) context).invokeOperation("/rdd/flatMap", serializedLambda, this.tableName);
-        List<String> result = resultRDD.collect();
-        ((FlameContextImpl) context).output(result.toString());  // 将结果输出
-        return resultRDD;  // 返回处理后的 RDD
+        return (FlameRDD) ((FlameContextImpl) context).invokeOperation("/rdd/flatMap", serializedLambda, this.tableName);
+
     }
+
+//    List<String> out = rdd.collect();
+//		Collections.sort(out);
+//
+//    String result = "";
+//		for (String s : out)
+//    result = result+(result.equals("") ? "" : ",")+s;
+//
+//		ctx.output(result);
+
+
+
 
 
 

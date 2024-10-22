@@ -34,7 +34,7 @@ class Worker extends cis5550.generic.Worker {
       return "Task completed.";
     });
     post("/rdd/flatMap", (request, response) -> {
-            File jarfile=new File("");
+            File jarfile=new File("../lib/kvs.jar");
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
             Map<String, String> params = new HashMap<>();

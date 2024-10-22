@@ -54,13 +54,6 @@ public class FlameContextImpl implements FlameContext {
 
 
     public Object invokeOperation(String operation, byte[] lambda, String inputTable,String... additionalParams) throws IOException {
-//        System.out.println("invoke接受的"+lambda);
-//        File jarFile1 = new File("/Users/mts/CIS5550/HW6/src/cis5550/__worker9001-current.jar");
-//        File jarFile2 = new File("/Users/mts/CIS5550/HW6/src/cis5550/job-2.jar");
-//        Object lambda1= Serializer.byteArrayToObject(lambda,jarFile1);
-//        Object lambda2= Serializer.byteArrayToObject(lambda,jarFile2);
-//        System.out.println("invoke——1范序列的"+lambda1);
-//        System.out.println("invoke——2范序列的"+lambda2);
         String outputTable = "output_" + System.currentTimeMillis();
         Partitioner partitioner = new Partitioner();
         partitioner.setKeyRangesPerWorker(1);
@@ -144,9 +137,6 @@ public class FlameContextImpl implements FlameContext {
         return new FlameRDDImpl(outputTable,this);
 
     }
-
-
-
     public static List<String> getFlameWorkers() {
         return Coordinator.getWorkers();  // 返回一个 List<String>，其中每个字符串是 "IP:Port"
     }
