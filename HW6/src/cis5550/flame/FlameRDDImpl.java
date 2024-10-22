@@ -30,7 +30,6 @@ public class FlameRDDImpl implements FlameRDD {
             String value = row.get("value");  // 获取 "value" 列的内容
 //            System.out.println("Key: " + key + ", Value: " + value);  // 打印行键和对应的值
             result.add(value);
-
         }
         return result;
     }

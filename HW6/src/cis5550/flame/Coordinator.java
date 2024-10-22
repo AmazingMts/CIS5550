@@ -125,12 +125,12 @@ class Coordinator extends cis5550.generic.Coordinator {
         return sw.toString();
       }
       List<String> outputs = context.getOutputs();
+      System.out.println(outputs);
       StringBuilder result = new StringBuilder();
         for (String output : outputs) {
             result.append(output);
         }
-      return result.toString();
-
+      return "操蛋玩意123123";
     });
 
     get("/version", (request, response) -> { return "v1.2 Oct 28 2022"; });
