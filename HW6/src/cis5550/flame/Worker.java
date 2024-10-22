@@ -34,7 +34,7 @@ class Worker extends cis5550.generic.Worker {
       return "Task completed.";
     });
     post("/rdd/flatMap", (request, response) -> {
-            File jarfile=new File("../lib/kvs.jar");
+            File jarfile=new File("/Users/mts/Desktop/HW6/tests/flame-flatmap.jar");
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
             Map<String, String> params = new HashMap<>();
@@ -100,7 +100,7 @@ class Worker extends cis5550.generic.Worker {
             return "Task completed.";
         });
         post("/rdd/mapToPair", (request, response) -> {
-            File jarfile=new File("/Users/mts/Desktop/HW6/tests/flame-collect.jar");
+            File jarfile=new File("/Users/mts/Desktop/HW6/tests/flame-maptopair.jar");
 
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
@@ -152,7 +152,7 @@ class Worker extends cis5550.generic.Worker {
 
         });
         post("/rdd/foldByKey", (request, response) -> {
-            File jarfile = new File("");
+            File jarfile = new File("/Users/mts/Desktop/HW6/tests/flame-foldbykey.jar");
 
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
