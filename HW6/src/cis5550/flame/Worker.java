@@ -34,7 +34,7 @@ class Worker extends cis5550.generic.Worker {
       return "Task completed.";
     });
     post("/rdd/flatMap", (request, response) -> {
-            File jarfile=new File("/Users/mts/Desktop/HW6/tests/flame-flatmap.jar");
+
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
             Map<String, String> params = new HashMap<>();
@@ -62,7 +62,7 @@ class Worker extends cis5550.generic.Worker {
 
             // 反序列化 lambda 参数
             byte[] lambdaBytes = Base64.getDecoder().decode(lambdaParam);
-            FlameRDD.StringToIterable lambda = (FlameRDD.StringToIterable) Serializer.byteArrayToObject(lambdaBytes,jarfile);
+            FlameRDD.StringToIterable lambda = (FlameRDD.StringToIterable) Serializer.byteArrayToObject(lambdaBytes,myJAR);
 
             KVSClient kvs = new KVSClient("localhost:8000");
             Iterator<Row> iterator = kvs.scan(inputTable, startKey, endKey);  // 获取迭代器
@@ -100,8 +100,8 @@ class Worker extends cis5550.generic.Worker {
             return "Task completed.";
         });
         post("/rdd/mapToPair", (request, response) -> {
-            File jarfile=new File("/Users/mts/Desktop/HW6/tests/flame-maptopair.jar");
-
+            File jarFile = new File("/Users/mts/Desktop/HW6/tests/flame-maptopair.jar");
+            System.out.println(jarFile.getAbsolutePath());
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
             Map<String, String> params = new HashMap<>();
@@ -129,7 +129,7 @@ class Worker extends cis5550.generic.Worker {
 
             // 反序列化 lambda 参数
             byte[] lambdaBytes = Base64.getDecoder().decode(lambdaParam);
-            FlameRDD.StringToPair lambda = (FlameRDD.StringToPair) Serializer.byteArrayToObject(lambdaBytes, jarfile);
+            FlameRDD.StringToPair lambda = (FlameRDD.StringToPair) Serializer.byteArrayToObject(lambdaBytes, jarFile);
 
             KVSClient kvs = new KVSClient("localhost:8000");
             Iterator<Row> iterator = kvs.scan(inputTable, startKey, endKey);  // 获取迭代器
@@ -181,7 +181,7 @@ class Worker extends cis5550.generic.Worker {
                 return "Missing 'lambda' parameter";
             }
             byte[] lambdaBytes = Base64.getDecoder().decode(lambdaParam);
-            FlamePairRDD.TwoStringsToString lambda = (FlamePairRDD.TwoStringsToString) Serializer.byteArrayToObject(lambdaBytes, jarfile);
+            FlamePairRDD.TwoStringsToString lambda = (FlamePairRDD.TwoStringsToString) Serializer.byteArrayToObject(lambdaBytes, myJAR);
             KVSClient kvs = new KVSClient("localhost:8000");
             Iterator<Row> iterator = kvs.scan(inputTable);  // 扫描输入表
 

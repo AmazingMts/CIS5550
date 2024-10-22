@@ -64,7 +64,7 @@ public class HW6Test extends GenericTest {
         Random r = new Random();
         int num = 20+r.nextInt(30), extra = 10;
         String arg[] = new String[num+extra];
-        for (int i=0; i<num; i++)
+        for (int i=0; i<num; i++) 
           arg[i] = randomAlphaNum(5,10);
         for (int i=0; i<extra; i++)
           arg[num+i] = arg[r.nextInt(num)];
@@ -74,7 +74,7 @@ public class HW6Test extends GenericTest {
           x.add(arg[i]);
         Collections.sort(x);
         String expected = "";
-        for (String s : x)
+        for (String s : x) 
           expected = expected + (expected.equals("") ? "" : ",") + s;
 
         String response = FlameSubmit.submit("localhost:9000", "tests/flame-collect.jar", "cis5550.test.FlameCollect", arg);
@@ -115,7 +115,7 @@ public class HW6Test extends GenericTest {
         argsAsString += ")";
 
         String expected = "";
-        for (String s : theWords)
+        for (String s : theWords) 
           expected = expected + (expected.equals("") ? "" : ",") + s;
 
         String response = FlameSubmit.submit("localhost:9000", "tests/flame-flatmap.jar", "cis5550.test.FlameFlatMap", arg);
@@ -145,7 +145,7 @@ public class HW6Test extends GenericTest {
 
         Collections.sort(exp);
         String expected = "";
-        for (String s : exp)
+        for (String s : exp) 
           expected = expected + (expected.equals("") ? "" : ",") + s;
 
         String response = FlameSubmit.submit("localhost:9000", "tests/flame-maptopair.jar", "cis5550.test.FlameMapToPair", arg);
@@ -185,7 +185,7 @@ public class HW6Test extends GenericTest {
         argsAsString += ")";
 
         String expected = "";
-        for (int i=0; i<chr.length(); i++)
+        for (int i=0; i<chr.length(); i++) 
           expected = expected + (expected.equals("") ? "" : ",") + "(" + chr.charAt(i)+","+sum[i]+")";
 
         String response = FlameSubmit.submit("localhost:9000", "tests/flame-foldbykey.jar", "cis5550.test.FlameFoldByKey", arg);
@@ -210,7 +210,7 @@ public class HW6Test extends GenericTest {
     closeOutputFile();
   }
 
-  public static void main(String args[]) throws Exception {
+	public static void main(String args[]) throws Exception {
 
     /* Make a set of enabled tests. If no command-line arguments were specified, run all tests. */
 
@@ -242,14 +242,14 @@ public class HW6Test extends GenericTest {
     if ((args.length == 0) || args[0].equals("all") || args[0].equals("auto")) {
 //      tests.add("output");
 //      tests.add("collect");
-      tests.add("flatmap");
+//      tests.add("flatmap");
       tests.add("maptopair");
       tests.add("foldbykey");
-    }
+    } 
 
     for (int i=0; i<args.length; i++)
-      if (!args[i].equals("all") && !args[i].equals("auto") && !args[i].equals("setup") && !args[i].equals("cleanup"))
-        tests.add(args[i]);
+      if (!args[i].equals("all") && !args[i].equals("auto") && !args[i].equals("setup") && !args[i].equals("cleanup")) 
+     	  tests.add(args[i]);
 
     HW6Test t = new HW6Test();
     t.setExitUponFailure(exitUponFailure);

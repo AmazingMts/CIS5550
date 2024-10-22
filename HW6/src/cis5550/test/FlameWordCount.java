@@ -26,5 +26,4 @@ public class FlameWordCount {
 		for (FlamePair tuple : output)
 			ctx.output(tuple._1()+": "+tuple._2()+"\n");
 	}
-
 }
