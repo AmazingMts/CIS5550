@@ -39,10 +39,8 @@ public class FlameRDDImpl implements FlameRDD {
         byte[] serializedLambda = Serializer.objectToByteArray(lambda);
 //        return (FlameRDD) ((FlameContextImpl) context).invokeOperation("/rdd/flatMap", serializedLambda, this.tableName);
         FlameRDD resultRDD = (FlameRDD) ((FlameContextImpl) context).invokeOperation("/rdd/flatMap", serializedLambda, this.tableName);
-
-        // 将结果添加到输出中
-        List<String> result = resultRDD.collect();  // 调用 collect 方法获取 flatMap 操作后的结果
-        ((FlameContextImpl) context).output("FlatMap result: " + String.join(",", result));  // 将结果输出
+        List<String> result = resultRDD.collect();
+        ((FlameContextImpl) context).output(result.toString());  // 将结果输出
         return resultRDD;  // 返回处理后的 RDD
     }
 
