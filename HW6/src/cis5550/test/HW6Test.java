@@ -1,6 +1,5 @@
 package cis5550.test;
 
-import cis5550.flame.FlamePair;
 import cis5550.flame.FlameSubmit;
 import java.util.*;
 import java.nio.file.*;
@@ -116,7 +115,7 @@ public class HW6Test extends GenericTest {
         argsAsString += ")";
 
         String expected = "";
-        for (String s : theWords) 
+        for (String s : theWords)
           expected = expected + (expected.equals("") ? "" : ",") + s;
 
         String response = FlameSubmit.submit("localhost:9000", "tests/flame-flatmap.jar", "cis5550.test.FlameFlatMap", arg);
@@ -146,7 +145,7 @@ public class HW6Test extends GenericTest {
 
         Collections.sort(exp);
         String expected = "";
-        for (String s : exp) 
+        for (String s : exp)
           expected = expected + (expected.equals("") ? "" : ",") + s;
 
         String response = FlameSubmit.submit("localhost:9000", "tests/flame-maptopair.jar", "cis5550.test.FlameMapToPair", arg);
@@ -186,7 +185,7 @@ public class HW6Test extends GenericTest {
         argsAsString += ")";
 
         String expected = "";
-        for (int i=0; i<chr.length(); i++) 
+        for (int i=0; i<chr.length(); i++)
           expected = expected + (expected.equals("") ? "" : ",") + "(" + chr.charAt(i)+","+sum[i]+")";
 
         String response = FlameSubmit.submit("localhost:9000", "tests/flame-foldbykey.jar", "cis5550.test.FlameFoldByKey", arg);
@@ -211,7 +210,7 @@ public class HW6Test extends GenericTest {
     closeOutputFile();
   }
 
-	public static void main(String args[]) throws Exception {
+  public static void main(String args[]) throws Exception {
 
     /* Make a set of enabled tests. If no command-line arguments were specified, run all tests. */
 
@@ -246,11 +245,11 @@ public class HW6Test extends GenericTest {
       tests.add("flatmap");
       tests.add("maptopair");
       tests.add("foldbykey");
-    } 
+    }
 
     for (int i=0; i<args.length; i++)
-      if (!args[i].equals("all") && !args[i].equals("auto") && !args[i].equals("setup") && !args[i].equals("cleanup")) 
-     	  tests.add(args[i]);
+      if (!args[i].equals("all") && !args[i].equals("auto") && !args[i].equals("setup") && !args[i].equals("cleanup"))
+        tests.add(args[i]);
 
     HW6Test t = new HW6Test();
     t.setExitUponFailure(exitUponFailure);

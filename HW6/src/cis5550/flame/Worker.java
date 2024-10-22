@@ -33,7 +33,7 @@ class Worker extends cis5550.generic.Worker {
       return "OK";
     });
     post("/rdd/flatMap", (request, response) -> {
-            File jarfile=new File("/Users/mts/CIS5550/HW6/src/cis5550/job-1.jar");
+            File jarfile=new File("");
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
             Map<String, String> params = new HashMap<>();
@@ -99,7 +99,7 @@ class Worker extends cis5550.generic.Worker {
             return "Operation completed";
         });
         post("/rdd/mapToPair", (request, response) -> {
-            File jarfile=new File("/Users/mts/CIS5550/HW6/src/cis5550/job-1.jar");
+            File jarfile=new File("");
 
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
@@ -148,7 +148,7 @@ class Worker extends cis5550.generic.Worker {
             return "Operation completed";
         });
         post("/rdd/foldByKey", (request, response) -> {
-            File jarfile = new File("/Users/mts/CIS5550/HW6/src/cis5550/job-1.jar");
+            File jarfile = new File("");
 
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
@@ -193,9 +193,7 @@ class Worker extends cis5550.generic.Worker {
                 Set<String> columnKeys = row.columns();
                 for (String columnKey : columnKeys) {
                     String value = row.get(columnKey);  // 获取当前列的值
-                    System.out.println("处理列：" + columnKey + ", 值：" + value);
 
-                    // 获取当前列的累加器值，如果列名之前没有出现，则初始化为 zeroElement
                     Integer accumulator = globalAccumulator.getOrDefault(columnKey, Integer.parseInt(zeroElement));
 
                     // 执行累加操作
@@ -206,7 +204,6 @@ class Worker extends cis5550.generic.Worker {
                         continue;
                     }
 
-                    // 将累加后的结果放入全局累加器
                     globalAccumulator.put(columnKey, accumulator);
                 }
             }
