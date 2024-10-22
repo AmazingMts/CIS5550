@@ -30,7 +30,8 @@ class Worker extends cis5550.generic.Worker {
       FileOutputStream fos = new FileOutputStream(myJAR);
       fos.write(request.bodyAsBytes());
       fos.close();
-      return "OK";
+      response.body("Task completed. Data has been stored in KVS.");
+      return "Task completed.";
     });
     post("/rdd/flatMap", (request, response) -> {
             File jarfile=new File("");
@@ -96,7 +97,8 @@ class Worker extends cis5550.generic.Worker {
 
             // 返回成功状态
             response.status(200, "successful");
-            return "Operation completed";
+            response.body("Task completed. Data has been stored in KVS.");
+            return "Task completed.";
         });
         post("/rdd/mapToPair", (request, response) -> {
             File jarfile=new File("");
@@ -145,7 +147,10 @@ class Worker extends cis5550.generic.Worker {
 
             // 返回成功状态
             response.status(200, "successful");
-            return "Operation completed";
+            response.body("Task completed. Data has been stored in KVS.");
+            return "Task completed.";
+
+
         });
         post("/rdd/foldByKey", (request, response) -> {
             File jarfile = new File("");
@@ -216,8 +221,9 @@ class Worker extends cis5550.generic.Worker {
                 kvs.put(outputTable,"result" , columnKey, finalAccumulator.toString().getBytes(StandardCharsets.UTF_8));
             }
 
-            response.status(200, "FoldByKey operation completed successfully");
-            return "FoldByKey operation completed";
+            response.body("Task completed. Data has been stored in KVS.");
+            response.status(200, "successful");
+            return "Task completed.";
         });
     }
 }
