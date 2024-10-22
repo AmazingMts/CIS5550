@@ -74,7 +74,6 @@ class Worker extends cis5550.generic.Worker {
             while (iterator.hasNext()) {
                 Row row = iterator.next();
                 String value = row.get("value");  // 获取当前行的值
-                System.out.println(value);
 
                 // 调用lambda对当前行的值进行处理
                 Iterable<String> results = lambda.op(value);
