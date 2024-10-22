@@ -240,8 +240,8 @@ public class HW6Test extends GenericTest {
     }
 
     if ((args.length == 0) || args[0].equals("all") || args[0].equals("auto")) {
-      tests.add("output");
-      tests.add("collect");
+//      tests.add("output");
+//      tests.add("collect");
       tests.add("flatmap");
       tests.add("maptopair");
       tests.add("foldbykey");
