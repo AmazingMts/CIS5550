@@ -101,7 +101,7 @@ class Worker extends cis5550.generic.Worker {
         });
         post("/rdd/mapToPair", (request, response) -> {
             File jarFile = new File("/Users/mts/Desktop/HW6/tests/flame-maptopair.jar");
-            System.out.println(jarFile.getAbsolutePath());
+            System.out.println(jarFile);
             // 解析HTTP请求中的参数
             String body = request.body(); // 获取POST请求的body内容
             Map<String, String> params = new HashMap<>();
@@ -129,7 +129,7 @@ class Worker extends cis5550.generic.Worker {
 
             // 反序列化 lambda 参数
             byte[] lambdaBytes = Base64.getDecoder().decode(lambdaParam);
-            FlameRDD.StringToPair lambda = (FlameRDD.StringToPair) Serializer.byteArrayToObject(lambdaBytes, jarFile);
+            FlameRDD.StringToPair lambda = (FlameRDD.StringToPair) Serializer.byteArrayToObject(lambdaBytes, myJAR);
 
             KVSClient kvs = new KVSClient("localhost:8000");
             Iterator<Row> iterator = kvs.scan(inputTable, startKey, endKey);  // 获取迭代器
