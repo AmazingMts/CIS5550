@@ -529,8 +529,164 @@ class Worker extends cis5550.generic.Worker {
             return accumulator;
         });
 
+        post("/rdd/filter", (request, response) -> {
+            // Parse the request body to retrieve parameters
+            String body = request.body();
+            Map<String, String> params = new HashMap<>();
+            String[] pairsArray = body.split("&");
+            for (String pair : pairsArray) {
+                String[] keyValue = pair.split("=");
+                if (keyValue.length == 2) {
+                    params.put(URLDecoder.decode(keyValue[0], "UTF-8"), URLDecoder.decode(keyValue[1], "UTF-8"));
+                }
+            }
+
+            // Get parameters from the parsed request
+            String inputTable = params.get("inputTable");
+            String outputTable = params.get("outputTable");
+            String lambdaParam = params.get("lambda");
+            String startKey = params.get("startKey");
+            String endKey = params.get("endKey");
+
+            // Deserialize the lambda function
+            byte[] lambdaBytes = Base64.getDecoder().decode(lambdaParam);
+            FlameRDD.StringToBoolean lambda = (FlameRDD.StringToBoolean) Serializer.byteArrayToObject(lambdaBytes, myJAR);
+
+            KVSClient kvs = new KVSClient("localhost:8000");
+            Iterator<Row> iterator = kvs.scan(inputTable, startKey, endKey);
+
+            while (iterator.hasNext()) {
+                Row row = iterator.next();
+                System.out.println("Row Key: " + row.key());
+
+                // Retrieve and split the comma-separated values in the "value" column
+                String value = row.get("value");
+                String[] items = value.split(","); // Split by commas
+
+                // Filter each item and store if it passes
+                for (String item : items) {
+                    System.out.println("Evaluating " + item);
+
+                    // Check if item passes the filter
+                    boolean passesFilter = lambda.op(item);
+                    System.out.println("Evaluating " + item + " -> " + passesFilter);
+
+                    if (passesFilter) {
+                        // Store the filtered item with a unique key in the output table
+                        String uniqueKey = row.key() + "_" + item; // Ensure unique key per item
+                        kvs.put(outputTable, uniqueKey, "value", item);
+                    }
+                }
+            }
+
+            response.status(200, "Filter operation completed");
+            return outputTable;
+        });
 
 
+        post("/rdd/mapPartitions", (request, response) -> {
+
+            String body = request.body();
+            Map<String, String> params = new HashMap<>();
+            String[] pairsArray = body.split("&");
+            for (String pair : pairsArray) {
+                String[] keyValue = pair.split("=");
+                if (keyValue.length == 2) {
+                    params.put(URLDecoder.decode(keyValue[0], "UTF-8"), URLDecoder.decode(keyValue[1], "UTF-8"));
+                }
+            }
+
+            String inputTable = params.get("inputTable");
+            String outputTable = params.get("outputTable");
+            String lambdaParam = params.get("lambda");
+            String startKey = params.get("startKey");
+            String endKey = params.get("endKey");
+
+            byte[] lambdaBytes = Base64.getDecoder().decode(lambdaParam);
+            FlameRDD.IteratorToIterator lambda = (FlameRDD.IteratorToIterator) Serializer.byteArrayToObject(lambdaBytes, myJAR);
+
+            KVSClient kvs = new KVSClient("localhost:8000");
+            Iterator<Row> iterator = kvs.scan(inputTable,startKey,endKey);
+
+            List<String> partitionData = new ArrayList<>();
+            while (iterator.hasNext()) {
+                Row row = iterator.next();
+                String value = row.get("value");
+                partitionData.add(value);
+            }
+
+            Iterator<String> resultIterator = lambda.op(partitionData.iterator());
+            int i = 0;
+            while (resultIterator.hasNext()) {
+                String result = resultIterator.next();
+//                System.out.println(result);
+                String rowKey = "row_" + System.currentTimeMillis() + "_" + i++;
+                kvs.put(outputTable, rowKey, "value", result);
+            }
+            response.status(200, "MapPartitions operation completed");
+            return outputTable;
+        });
+
+
+        post("/pairRDD/cogroup", (request, response) -> {
+            // 解析请求中的参数
+            String body = request.body();
+            Map<String, String> params = new HashMap<>();
+            String[] pairsArray = body.split("&");
+            for (String pair : pairsArray) {
+                String[] keyValue = pair.split("=");
+                if (keyValue.length == 2) {
+                    params.put(URLDecoder.decode(keyValue[0], "UTF-8"), URLDecoder.decode(keyValue[1], "UTF-8"));
+                }
+            }
+
+            String inputTable = params.get("inputTable");
+            String otherTable = params.get("otherTable");
+            String outputTable = params.get("outputTable");
+
+            KVSClient kvs = new KVSClient("localhost:8000");
+
+            // 读取第一个 RDD 表的数据
+            Map<String, List<String>> thisMap = new HashMap<>();
+            Iterator<Row> thisIterator = kvs.scan(inputTable);
+            while (thisIterator.hasNext()) {
+                Row row = thisIterator.next();
+                String key = row.key();
+                List<String> values = new ArrayList<>();
+                for (String col : row.columns()) {
+                    values.add(row.get(col));
+                }
+                thisMap.put(key, values);
+            }
+
+            // 读取第二个 RDD 表的数据
+            Map<String, List<String>> otherMap = new HashMap<>();
+            Iterator<Row> otherIterator = kvs.scan(otherTable);
+            while (otherIterator.hasNext()) {
+                Row row = otherIterator.next();
+                String key = row.key();
+                List<String> values = new ArrayList<>();
+                for (String col : row.columns()) {
+                    values.add(row.get(col));
+                }
+                otherMap.put(key, values);
+            }
+
+            // 对所有键进行聚合，生成 [X],[Y] 格式的结果
+            Set<String> allKeys = new HashSet<>(thisMap.keySet());
+            allKeys.addAll(otherMap.keySet());
+
+            for (String key : allKeys) {
+                List<String> thisValues = thisMap.getOrDefault(key, new ArrayList<>());
+                List<String> otherValues = otherMap.getOrDefault(key, new ArrayList<>());
+
+                String resultValue = "[" + String.join(",", thisValues) + "],[" + String.join(",", otherValues) + "]";
+                kvs.put(outputTable, key, "value", resultValue);
+            }
+
+            response.status(200, "cogroup operation completed");
+            return outputTable;
+        });
 
 
 

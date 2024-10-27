@@ -91,13 +91,27 @@ public class FlameRDDImpl implements FlameRDD {
 
     @Override
     public FlameRDD filter(StringToBoolean lambda) throws Exception {
-        return null;
+        byte[] serializedLambda = Serializer.objectToByteArray(lambda);
+
+        // Invoke operation with the serialized lambda and get the filtered RDD
+        FlameRDDImpl filteredRDD = (FlameRDDImpl) ((FlameContextImpl) context).invokeOperation(
+                "/rdd/filter", serializedLambda, this.tableName
+        );
+
+        return filteredRDD;
     }
+
+
+
 
     @Override
     public FlameRDD mapPartitions(IteratorToIterator lambda) throws Exception {
-        return null;
+        byte[] serializedLambda = Serializer.objectToByteArray(lambda);
+        return (FlameRDD) ((FlameContextImpl) context).invokeOperation(
+                "/rdd/mapPartitions", serializedLambda, this.tableName);
     }
+
+
 
     @Override
     public FlamePairRDD flatMapToPair(StringToPairIterable lambda) throws Exception {

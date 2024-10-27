@@ -162,6 +162,10 @@ public class FlameContextImpl implements FlameContext {
                             String zeroElement = additionalParams[0];
                             body+="&zeroElement=" + URLEncoder.encode(zeroElement, StandardCharsets.UTF_8);
                         }
+                        else if(operation.equals("/rdd/mapPartitions")){
+                            String f=additionalParams[0];
+                            body += "&otherTable=" + URLEncoder.encode(f, StandardCharsets.UTF_8);
+                        }
                     }
                     HTTP.Response httpResponse = HTTP.doRequest("POST", flameWorkerURL, body.getBytes(StandardCharsets.UTF_8));
                     String workerResult = new String(httpResponse.body(), StandardCharsets.UTF_8);
