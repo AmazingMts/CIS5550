@@ -643,62 +643,52 @@ class Worker extends cis5550.generic.Worker {
             String inputTable = params.get("inputTable");
             String otherTable = params.get("otherTable");
             String outputTable = params.get("outputTable");
-
+            String startKey = params.get("startKey");
+            String endKey = params.get("endKey");
             KVSClient kvs = new KVSClient("localhost:8000");
 
-            // 读取第一个 RDD 表的数据
+            // 存储各个工人处理的部分结果
             Map<String, List<String>> thisMap = new HashMap<>();
+            Map<String, List<String>> otherMap = new HashMap<>();
+
+            // 读取第一个 RDD 表的数据
             Iterator<Row> thisIterator = kvs.scan(inputTable);
             while (thisIterator.hasNext()) {
                 Row row = thisIterator.next();
-                String key = row.key();
-                List<String> values = new ArrayList<>();
-                for (String col : row.columns()) {
-                    values.add(row.get(col));
+                for (String column : row.columns()) {
+                    String value = row.get(column);
+                    thisMap.computeIfAbsent(column, k -> new ArrayList<>()).add(value);
                 }
-                thisMap.put(key, values);
             }
 
             // 读取第二个 RDD 表的数据
-            Map<String, List<String>> otherMap = new HashMap<>();
             Iterator<Row> otherIterator = kvs.scan(otherTable);
             while (otherIterator.hasNext()) {
                 Row row = otherIterator.next();
-                String key = row.key();
-                List<String> values = new ArrayList<>();
-                for (String col : row.columns()) {
-                    values.add(row.get(col));
+                for (String column : row.columns()) {
+                    String value = row.get(column);
+                    otherMap.computeIfAbsent(column, k -> new ArrayList<>()).add(value);
                 }
-                otherMap.put(key, values);
             }
 
-            // 对所有键进行聚合，生成 [X],[Y] 格式的结果
+            // 对所有键进行聚合并生成 [X],[Y] 格式的结果
             Set<String> allKeys = new HashSet<>(thisMap.keySet());
             allKeys.addAll(otherMap.keySet());
 
+            // 合并并写入输出表
             for (String key : allKeys) {
                 List<String> thisValues = thisMap.getOrDefault(key, new ArrayList<>());
                 List<String> otherValues = otherMap.getOrDefault(key, new ArrayList<>());
 
                 String resultValue = "[" + String.join(",", thisValues) + "],[" + String.join(",", otherValues) + "]";
+                kvs.put(outputTable, key, "key", key);  // 使用 column 作为 key
                 kvs.put(outputTable, key, "value", resultValue);
             }
 
-            response.status(200, "cogroup operation completed");
+            response.status(200, "successful");
+            response.body(outputTable);
             return outputTable;
         });
-
-
-
-
-
-
-
-
-
-
-
-
 
     }
 }

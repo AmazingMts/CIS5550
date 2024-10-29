@@ -8,6 +8,8 @@ import cis5550.kvs.KVSClient;
 public interface FlameContext {
   public KVSClient getKVS();
 
+  public FlamePairRDD parallelizePairs(List<FlamePair> data1) throws IOException;
+
   public interface RowToString extends Serializable {
     String op(Row r);
   };

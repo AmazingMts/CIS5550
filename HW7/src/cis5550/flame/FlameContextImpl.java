@@ -45,6 +45,21 @@ public class FlameContextImpl implements FlameContext {
         return new FlameRDDImpl(tableName,this);
     }
 
+    public FlamePairRDD parallelizePairs(List<FlamePair> data) throws IOException {
+        String tableName = "PairRDD_" + System.currentTimeMillis();
+        KVSClient kvs = new KVSClient("localhost:8000");
+
+        for (int i = 0; i < data.size(); i++) {
+            FlamePair pair = data.get(i);
+            String rowKey = Hasher.hash("" + i);  // Hash based on the index to generate a unique rowKey
+
+            kvs.put(tableName, rowKey, pair._1(), pair._2());  // Use pair._1() as the column and pair._2() as the value
+        }
+
+        return new FlamePairRDDImpl(tableName, this);
+    }
+
+
     @Override
     public FlameRDD fromTable(String tableName, RowToString lambda) throws Exception {
         // 创建一个 KVS 客户端，用于扫描表
@@ -163,6 +178,9 @@ public class FlameContextImpl implements FlameContext {
                             body+="&zeroElement=" + URLEncoder.encode(zeroElement, StandardCharsets.UTF_8);
                         }
                         else if(operation.equals("/rdd/mapPartitions")){
+                            String f=additionalParams[0];
+                            body += "&otherTable=" + URLEncoder.encode(f, StandardCharsets.UTF_8);
+                        } else if (operation.equals("/pairRDD/cogroup")) {
                             String f=additionalParams[0];
                             body += "&otherTable=" + URLEncoder.encode(f, StandardCharsets.UTF_8);
                         }

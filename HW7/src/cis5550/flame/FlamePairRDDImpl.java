@@ -80,8 +80,8 @@ public class FlamePairRDDImpl implements FlamePairRDD {
     @Override
     public FlamePairRDD cogroup(FlamePairRDD other) throws Exception {
         String otherTable= ((FlamePairRDDImpl) other) .tableName;
-        return (FlamePairRDD) ((FlameContextImpl) context).invokeOperation(
-                "/pairRDD/cogroup", new byte[0], this.tableName, otherTable
-        );
+        FlameRDDImpl resultRDD = (FlameRDDImpl) ((FlameContextImpl) context).invokeOperation(
+                "/pairRDD/cogroup", new byte[0], this.tableName,otherTable);
+        return new FlamePairRDDImpl(resultRDD.tableName, resultRDD.context);
     }
 }
