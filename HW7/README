@@ -30,7 +30,7 @@ implement and that we should not even attempt to grade?
 
 Did you implement any of the extra-credit features? 
 [ ] No, I did not implement any extra-credit features.
-[✅] I implemented _________________________________________________________
+[✅] I implemented ___cogroup (+5 points) mapPartitions (+5 points) filter (+5 points)______________________________________________________
 
 Approximately how much time did you spend on this assignment (without EC)?
 _20__ hour(s)
