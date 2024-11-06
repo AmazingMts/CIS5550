@@ -77,7 +77,7 @@ public class Crawler {
                     if (kvs.existsRow("pt-crawl", urlHash)) {
                         return extractedUrls;
                     }
-//
+
 //                    long currentTime = System.currentTimeMillis();
 //                    Row hostRow = kvs.getRow("hosts", host);
 //
