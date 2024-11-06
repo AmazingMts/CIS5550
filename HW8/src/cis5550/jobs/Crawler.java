@@ -78,26 +78,26 @@ public class Crawler {
                         return extractedUrls;
                     }
 
-//                    long currentTime = System.currentTimeMillis();
-//                    Row hostRow = kvs.getRow("hosts", host);
-//
-//                    if (hostRow != null) {
-//                        String lastAccessTimeStr = hostRow.get("lastAccessTime");
-//                        if (lastAccessTimeStr != null) {
-//                            long lastAccessTime = Long.parseLong(lastAccessTimeStr);
-//                            if (currentTime - lastAccessTime < 1000) {
-//                                extractedUrls.add(url);
-//                                return extractedUrls;
-//                            }
-//                        }
-//                    }
-//                    Row existingRow = kvs.getRow("hosts", host);
-//                    if (existingRow == null) {
-//                        existingRow = new Row(host);
-//                    }
-//
-//                    existingRow.put("lastAccessTime", String.valueOf(currentTime));
-//                    kvs.putRow("hosts", existingRow);
+                    long currentTime = System.currentTimeMillis();
+                    Row hostRow = kvs.getRow("hosts", host);
+
+                    if (hostRow != null) {
+                        String lastAccessTimeStr = hostRow.get("lastAccessTime");
+                        if (lastAccessTimeStr != null) {
+                            long lastAccessTime = Long.parseLong(lastAccessTimeStr);
+                            if (currentTime - lastAccessTime < 1000) {
+                                extractedUrls.add(url);
+                                return extractedUrls;
+                            }
+                        }
+                    }
+                    Row existingRow = kvs.getRow("hosts", host);
+                    if (existingRow == null) {
+                        existingRow = new Row(host);
+                    }
+
+                    existingRow.put("lastAccessTime", String.valueOf(currentTime));
+                    kvs.putRow("hosts", existingRow);
 
 
                     HttpURLConnection headConnection = (HttpURLConnection) currentURL.openConnection();
