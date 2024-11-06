@@ -3,38 +3,11 @@ package cis5550.jobs;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import cis5550.tools.URLParser;
 public class HtmlParser {
-
-    public static Map<String, String> extractUrlsWithAnchors(String pageContent, String baseUrl) throws MalformedURLException {
-        Map<String, String> urlsWithAnchors = new HashMap<>();
-        Pattern tagPattern = Pattern.compile("<a\\s+([^>]*?)>(.*?)</a>", Pattern.CASE_INSENSITIVE);
-        Matcher tagMatcher = tagPattern.matcher(pageContent);
-        Pattern hrefPattern = Pattern.compile("href=\"(.*?)\"", Pattern.CASE_INSENSITIVE);
-
-        while (tagMatcher.find()) {
-            String attributes = tagMatcher.group(1);
-            String anchorText = tagMatcher.group(2).trim();
-            Matcher hrefMatcher = hrefPattern.matcher(attributes);
-            if (hrefMatcher.find()) {
-                String url = hrefMatcher.group(1);
-                String normalizedUrl = normalizeUrl(baseUrl, url);
-                if (normalizedUrl != null) {
-                    urlsWithAnchors.put(normalizedUrl, anchorText);
-                }
-            }
-        }
-        return urlsWithAnchors;
-    }
-
-
-
-
     public static List<String> extractUrls(String pageContent, String baseUrl) throws MalformedURLException {
         List<String> urls = new ArrayList<>();
         System.out.println(pageContent);
