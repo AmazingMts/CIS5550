@@ -142,9 +142,9 @@ public class Crawler {
                             byte[] pageContentBytes = buffer.toByteArray();
                             inputStream.close();
                             buffer.close();
-                            String pagecontent=new String(pageContentBytes);
+                            String content = new String(pageContentBytes);
 
-                            String contentHash = Hasher.hash(pagecontent);
+                            String contentHash = Hasher.hash(content);
                             Row contentRow = kvs.getRow("content-hashes", contentHash);
                             if (contentRow != null) {
                                 row.put("canonicalURL", contentRow.get("url"));
