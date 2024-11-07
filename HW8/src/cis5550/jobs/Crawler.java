@@ -29,15 +29,15 @@ public class Crawler {
         }
         return false;
     }
-    private static String computeHash(byte[] content) throws NoSuchAlgorithmException {
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
-        byte[] hashBytes = md.digest(content);
-        StringBuilder hashString = new StringBuilder();
-        for (byte b : hashBytes) {
-            hashString.append(String.format("%02x", b));
-        }
-        return hashString.toString();
-    }
+//    private static String computeHash(byte[] content) throws NoSuchAlgorithmException {
+//        MessageDigest md = MessageDigest.getInstance("SHA-256");
+//        byte[] hashBytes = md.digest(content);
+//        StringBuilder hashString = new StringBuilder();
+//        for (byte b : hashBytes) {
+//            hashString.append(String.format("%02x", b));
+//        }
+//        return hashString.toString();
+//    }
 
 
     public static void run(FlameContext context,String[] args) throws Exception {
@@ -142,8 +142,9 @@ public class Crawler {
                             byte[] pageContentBytes = buffer.toByteArray();
                             inputStream.close();
                             buffer.close();
+                            String pagecontent=new String(pageContentBytes);
 
-                            String contentHash = computeHash(pageContentBytes);
+                            String contentHash = Hasher.hash(pagecontent);
                             Row contentRow = kvs.getRow("content-hashes", contentHash);
                             if (contentRow != null) {
                                 row.put("canonicalURL", contentRow.get("url"));
