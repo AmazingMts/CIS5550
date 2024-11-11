@@ -6,6 +6,7 @@ import cis5550.flame.FlamePairRDD;
 import cis5550.flame.FlameRDD;
 import cis5550.kvs.KVSClient;
 import cis5550.kvs.Row;
+import cis5550.external.PorterStemmer;
 
 import java.io.IOException;
 import java.util.*;
@@ -39,12 +40,21 @@ public class Indexer {
                     .replaceAll("\\s+", " "); // 合并多个空格为一个空格
 
             String[] words = cleanedPage.split(" ");
+            PorterStemmer stemmer = new PorterStemmer();
             Map<String, List<Integer>> wordPositions = new HashMap<>();
 
             for (int i = 0; i < words.length; i++) {
                 String word = words[i];
                 if (!word.isEmpty()) {
-                    wordPositions.computeIfAbsent(word, k -> new ArrayList<>()).add(i + 1); // 位置从1开始
+                    stemmer.add(word.toCharArray(), word.length());  // Add the word to stemmer
+                    stemmer.stem();  // Perform stemming
+                    String stemmedWord = stemmer.toString();  // Get the stemmed version
+
+                    // Add both original and stemmed word if they are different
+                    wordPositions.computeIfAbsent(word, k -> new ArrayList<>()).add(i + 1);  // Add original
+                    if (!word.equals(stemmedWord)) {
+                        wordPositions.computeIfAbsent(stemmedWord, k -> new ArrayList<>()).add(i + 1);  // Add stemmed
+                    }
                 }
             }
 

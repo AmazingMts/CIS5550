@@ -186,9 +186,9 @@ public class PageRank {
 
                 return String.valueOf(maxValue);
             }));
-            System.out.println("累加值"+maxChange);
+//            System.out.println("累加值"+maxChange);
             long totalUrls = updatedStateTable.collect().size();
-            System.out.println("总共个数"+totalUrls);
+//            System.out.println("总共个数"+totalUrls);
             double percentageWithinThreshold = (maxChange*100) / totalUrls;
             Boolean hasConverged=percentageWithinThreshold>=requiredPercentage;
             if (hasConverged) {
