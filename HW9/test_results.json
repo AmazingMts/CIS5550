@@ -1,0 +1,4 @@
+{
+  "indexer": { "testStatus": "PASS", "testComments": "", "maxPoints": 25, "points": 25 },
+  "pagerank": { "testStatus": "PASS", "testComments": "", "maxPoints": 40, "points": 40 }
+}
