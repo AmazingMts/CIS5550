@@ -66,6 +66,7 @@ public class PageRank {
         boolean converged = false;
         FlamePairRDD currentRDD = prdd;
         int iterationnum=1;
+        double requiredPercentage = args.length > 1 ? Double.parseDouble(args[1]) : 100.0;
         while (!converged) {
 
 //            Iterator<Row> rows = kvs.scan("pt-pageranks");
@@ -85,7 +86,7 @@ public class PageRank {
                 String[] values = pair._2().split(",", 3);
                 double rc = Double.parseDouble(values[0]);
                 //这里有问题，rc一直1.0
-                System.out.println("TRANSFER内部"+urlHash+rc);
+//                System.out.println("TRANSFER内部"+urlHash+rc);
                 String[] links = values[2].isEmpty() ? new String[0] : values[2].split(",");
 
                 List<FlamePair> results = new ArrayList<>();
@@ -101,9 +102,9 @@ public class PageRank {
                 return results;
             });
 //
-            transferTable.collect().forEach(pair -> {
-                System.out.println("Transfer Table - Key: " + pair._1() + ", Value: " + pair._2());
-            });
+//            transferTable.collect().forEach(pair -> {
+//                System.out.println("Transfer Table - Key: " + pair._1() + ", Value: " + pair._2());
+//            });
             // Step 5: Aggregate the transfers
             FlamePairRDD aggregatedRanks = transferTable.foldByKey("0.0", (v1, v2) -> {
                 double accumulatedValue = Double.parseDouble(v1);
@@ -115,9 +116,9 @@ public class PageRank {
                 // Return the new accumulated value as a string
                 return Double.toString(newValue);
             });
-            aggregatedRanks.collect().forEach(pair -> System.out.println("aggregate"+pair._1() + ": " + pair._2()));
-
+//            aggregatedRanks.collect().forEach(pair -> System.out.println("aggregate"+pair._1() + ": " + pair._2()));
 //
+////
 //            // Step 6: Load the old state table
             FlameRDD rdd2 = ctx.fromTable("pt-pageranks", row -> {
                 String urlHash = row.key();
@@ -159,7 +160,7 @@ public class PageRank {
                 String urlHash = pair._1();
                 String value = pair._2();
                 try {
-                    System.out.println("旧一轮储存的值"+urlHash + "," + value);
+//                    System.out.println("旧一轮储存的值"+urlHash + "," + value);
                     kvs.put("pt-pageranks", urlHash, "rank", value);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -172,21 +173,25 @@ public class PageRank {
                 double oldRank = Double.parseDouble(parts[1]);
                 double newRank = Double.parseDouble(parts[0]);
                 double change = Math.abs(newRank - oldRank);
-                System.out.println("URL Hash: " + pair._1() + " -> Change: " + change);
-                return Collections.singleton(String.valueOf(change));
+//                System.out.println("URL Hash: " + pair._1() + " -> Change: " + change);
+                return Collections.singleton(change <= convergenceThreshold ? "1" : "0");
             });
             double maxChange = Double.parseDouble(convergenceCheck.fold("0.0", (v1, v2) -> {
                 double value1 = Double.parseDouble(v1);
                 double value2 = Double.parseDouble(v2);
-                double maxValue = Math.max(value1, value2);
+                double maxValue=value1+value2;
 
                 // 输出每次比较的结果
-                System.out.println("Comparing: " + value1 + " and " + value2 + " -> Max: " + maxValue);
+//                System.out.println("Comparing: " + value1 + " and " + value2 + " -> Max: " + maxValue);
 
                 return String.valueOf(maxValue);
             }));
-
-            if (maxChange < convergenceThreshold) {
+            System.out.println("累加值"+maxChange);
+            long totalUrls = updatedStateTable.collect().size();
+            System.out.println("总共个数"+totalUrls);
+            double percentageWithinThreshold = (maxChange*100) / totalUrls;
+            Boolean hasConverged=percentageWithinThreshold>=requiredPercentage;
+            if (hasConverged) {
                 converged = true;
             }
         }
